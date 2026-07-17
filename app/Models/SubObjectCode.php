@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\SubObjectCodeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,8 +10,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SubObjectCode extends Model
 {
-    /** @use HasFactory<\Database\Factories\SubObjectCodeFactory> */
+    /** @use HasFactory<SubObjectCodeFactory> */
     use HasFactory;
+
+    /**
+     * @var list<string>
+     */
+    protected $fillable = [
+        'object_code',
+        'code',
+        'name',
+        'active',
+    ];
 
     /**
      * @return array<string, string>

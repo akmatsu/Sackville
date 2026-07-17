@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use App\Enums\ObjectCodeCategory;
+use Database\Factories\ObjectCodeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ObjectCode extends Model
 {
-    /** @use HasFactory<\Database\Factories\ObjectCodeFactory> */
+    /** @use HasFactory<ObjectCodeFactory> */
     use HasFactory;
 
     protected $primaryKey = 'code';
@@ -18,11 +20,22 @@ class ObjectCode extends Model
     public $incrementing = false;
 
     /**
+     * @var list<string>
+     */
+    protected $fillable = [
+        'code',
+        'name',
+        'category',
+        'active',
+    ];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
+            'category' => ObjectCodeCategory::class,
             'active' => 'boolean',
         ];
     }

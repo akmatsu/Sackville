@@ -93,7 +93,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 - Execute PHP in app context for debugging and testing code. Do not create models without user approval, prefer tests with factories instead. Prefer existing Artisan commands over custom tinker code.
 - Always use single quotes to prevent shell expansion: `php artisan tinker --execute 'Your::code();'`
-  - Double quotes for PHP strings inside: `php artisan tinker --execute 'User::where("active", true)->count();'`
+    - Double quotes for PHP strings inside: `php artisan tinker --execute 'User::where("active", true)->count();'`
 
 === php rules ===
 
@@ -197,13 +197,13 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 
 Select::make('type')
-    ->options(CompanyType::class)
-    ->required()
-    ->live(),
+->options(CompanyType::class)
+->required()
+->live(),
 
 TextInput::make('company_name')
-    ->required()
-    ->visible(fn (Get $get): bool => $get('type') === 'business'),
+->required()
+->visible(fn (Get $get): bool => $get('type') === 'business'),
 
 </code-snippet>
 
@@ -214,15 +214,15 @@ use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Support\Str;
 
 TextInput::make('title')
-    ->required()
-    ->live(onBlur: true)
-    ->afterStateUpdated(fn (Set $set, ?string $state) => $set(
+->required()
+->live(onBlur: true)
+->afterStateUpdated(fn (Set $set, ?string $state) => $set(
         'slug',
         Str::slug($state ?? ''),
-    )),
+)),
 
 TextInput::make('slug')
-    ->required(),
+->required(),
 
 </code-snippet>
 
@@ -233,16 +233,16 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 
 Section::make('Details')
-    ->schema([
-        Grid::make(2)->schema([
-            TextInput::make('first_name')
-                ->columnSpan(1),
-            TextInput::make('last_name')
-                ->columnSpan(1),
-            TextInput::make('bio')
-                ->columnSpanFull(),
-        ]),
-    ]),
+->schema([
+Grid::make(2)->schema([
+TextInput::make('first_name')
+->columnSpan(1),
+TextInput::make('last_name')
+->columnSpan(1),
+TextInput::make('bio')
+->columnSpanFull(),
+]),
+]),
 
 </code-snippet>
 
@@ -252,14 +252,14 @@ Use `Repeater` for inline `HasMany` management. `->relationship()` with no args 
 use Filament\Forms\Components\Repeater;
 
 Repeater::make('qualifications')
-    ->relationship()
-    ->schema([
-        TextInput::make('institution')
-            ->required(),
-        TextInput::make('qualification')
-            ->required(),
-    ])
-    ->columns(2),
+->relationship()
+->schema([
+TextInput::make('institution')
+->required(),
+TextInput::make('qualification')
+->required(),
+])
+->columns(2),
 
 </code-snippet>
 
@@ -269,7 +269,7 @@ Use `state()` with a `Closure` to compute derived column values:
 use Filament\Tables\Columns\TextColumn;
 
 TextColumn::make('full_name')
-    ->state(fn (User $record): string => "{$record->first_name} {$record->last_name}"),
+->state(fn (User $record): string => "{$record->first_name} {$record->last_name}"),
 
 </code-snippet>
 
@@ -281,13 +281,13 @@ use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 
 SelectFilter::make('status')
-    ->options(UserStatus::class),
+->options(UserStatus::class),
 
 SelectFilter::make('author')
-    ->relationship('author', 'name'),
+->relationship('author', 'name'),
 
 Filter::make('verified')
-    ->query(fn (Builder $query) => $query->whereNotNull('email_verified_at')),
+->query(fn (Builder $query) => $query->whereNotNull('email_verified_at')),
 
 </code-snippet>
 
@@ -297,12 +297,12 @@ Actions are buttons that encapsulate optional modal forms and behavior:
 use Filament\Actions\Action;
 
 Action::make('updateEmail')
-    ->schema([
-        TextInput::make('email')
-            ->email()
-            ->required(),
-    ])
-    ->action(fn (array $data, User $record) => $record->update($data)),
+->schema([
+TextInput::make('email')
+->email()
+->required(),
+])
+->action(fn (array $data, User $record) => $record->update($data)),
 
 </code-snippet>
 
@@ -317,9 +317,9 @@ Testing setup (requires `pestphp/pest-plugin-livewire` in `composer.json`):
 use function Pest\Livewire\livewire;
 
 livewire(ListUsers::class)
-    ->assertCanSeeTableRecords($users)
+->assertCanSeeTableRecords($users)
     ->searchTable($users->first()->name)
-    ->assertCanSeeTableRecords($users->take(1))
+->assertCanSeeTableRecords($users->take(1))
     ->assertCanNotSeeTableRecords($users->skip(1));
 
 </code-snippet>
@@ -328,18 +328,18 @@ livewire(ListUsers::class)
 use function Pest\Laravel\assertDatabaseHas;
 
 livewire(CreateUser::class)
-    ->fillForm([
-        'name' => 'Test',
-        'email' => 'test@example.com',
-    ])
-    ->call('create')
-    ->assertNotified()
-    ->assertHasNoFormErrors()
-    ->assertRedirect();
+->fillForm([
+'name' => 'Test',
+'email' => 'test@example.com',
+])
+->call('create')
+->assertNotified()
+->assertHasNoFormErrors()
+->assertRedirect();
 
 assertDatabaseHas(User::class, [
-    'name' => 'Test',
-    'email' => 'test@example.com',
+'name' => 'Test',
+'email' => 'test@example.com',
 ]);
 
 </code-snippet>
@@ -352,8 +352,8 @@ livewire(EditUser::class, ['record' => $user->id])
     ->assertHasNoFormErrors();
 
 assertDatabaseHas(User::class, [
-    'id' => $user->id,
-    'name' => 'Updated',
+'id' => $user->id,
+'name' => 'Updated',
 ]);
 
 </code-snippet>
@@ -379,10 +379,10 @@ Use `->callAction(DeleteAction::class)` for page actions, or `->callAction(TestA
 use Filament\Actions\Testing\TestAction;
 
 livewire(ListUsers::class)
-    ->callAction(TestAction::make('promote')->table($user), [
-        'role' => 'admin',
-    ])
-    ->assertNotified();
+->callAction(TestAction::make('promote')->table($user), [
+'role' => 'admin',
+])
+->assertNotified();
 
 </code-snippet>
 
@@ -405,9 +405,9 @@ livewire(ListUsers::class)
 - **`Repeater` uses `->schema()`, not `->fields()`.**
 - **Never add `->dehydrated(false)` to fields that need to be saved.** It strips the value from form state before `->action()` or the save handler runs. Only use it for helper/UI-only fields.
 - **Use correct property types when overriding `Page`, `Resource`, and `Widget` properties.** These properties have union types or changed modifiers that must be preserved:
-  - `$navigationIcon`: `protected static string | BackedEnum | null` (not `?string`)
-  - `$navigationGroup`: `protected static string | UnitEnum | null` (not `?string`)
-  - `$view`: `protected string` (not `protected static string`) on `Page` and `Widget` classes
+    - `$navigationIcon`: `protected static string | BackedEnum | null` (not `?string`)
+    - `$navigationGroup`: `protected static string | UnitEnum | null` (not `?string`)
+    - `$view`: `protected string` (not `protected static string`) on `Page` and `Widget` classes
 
 </laravel-boost-guidelines>
 
@@ -435,11 +435,18 @@ This is a bespoke replacement for the Matanuska-Susitna Borough's legacy SharePo
 
 MSB uses a **5-segment** dotted GL string: `fund.department.division.object.sub_object` (example: `100.115.117.434.100`).
 
-- **Fund** (segment 1): `100` Areawide/General, `200`/`202`/`203` Non-Areawide, `245`–`259` fire service areas, `265`/`293` road/water service areas, `510`/`520` enterprise funds. Determines who is paying.
-- **Department** (segment 2): `115` IT, `120` Finance, `130` Planning, `150` Public Works, `160` Emergency Services, `170` Community Dev, `100`/`110` Admin.
-- **Division** (segment 3): Cost center within a department. **Division codes are NOT globally unique** — division `117` under department `115` is different from division `117` under any other department. Unique constraint is `(department_code, division_code)`.
-- **Object code** (segment 4): Expense category. Examples: `411.x` wages, `421.1` communication/network, `426.6` software, `434` equipment under $24K, `451.1` equipment over $24K. The dollar threshold ($24K or $25K) may shift — treat it as data, not a hardcoded label.
-- **Sub-object code** (segment 5): Further categorization. `.100` = IT equipment, `.300` = furniture, `.000` = rollup/parent/unspecified.
+Two independent axes combine to form a GL string:
+
+- **Fund + Department + Division** ("who spent the money?" / "where did the money come from?") — an organizational hierarchy.
+- **Object code + Sub-object code** ("what was the money spent on?") — an expense-category hierarchy, defined completely independently of Fund/Department/Division. The same object/sub-object pairing means the same thing no matter which division it's attached to.
+
+Segment definitions:
+
+- **Fund** (segment 1): `100` Areawide/General, `200`/`202`/`203` Non-Areawide, `245`–`259` fire service areas, `265`/`293` road/water service areas, `510`/`520` enterprise funds. Globally unique; definition never depends on any other segment.
+- **Department** (segment 2): `115` IT, `120` Finance, `130` Planning, `150` Public Works, `160` Emergency Services, `170` Community Dev, `100`/`110` Admin. Globally unique; definition never depends on any other segment.
+- **Division** (segment 3): Cost center. **Division codes are globally unique** — the same 3rd-segment code always identifies the same division, regardless of which fund/department it appears alongside. A division still belongs to exactly one department (`department_code` FK), but its `code` uniqueness is not scoped to that department.
+- **Object code** (segment 4): Expense category. Examples: `411.x` wages, `421.1` communication/network, `426.6` software, `434` equipment under $24K, `451.1` equipment over $24K. The dollar threshold ($24K or $25K) may shift — treat it as data, not a hardcoded label. Globally unique; definition never depends on Fund/Department/Division — `424` always means utilities no matter which division it's used under. Object codes can be selected or created independently of any Fund/Department/Division context.
+- **Sub-object code** (segment 5): Further categorization. **Dependent on Object Code, not on Fund/Department/Division.** `.200` means postage under object `421` but water & sewer under object `424`. Unique within Object Code.
 
 **A GL string can be valid at multiple granularities:**
 
@@ -447,7 +454,7 @@ MSB uses a **5-segment** dotted GL string: `fund.department.division.object.sub_
 - `100.115.117.434` — a budget-line rollup
 - `100.115.117.434.100` — a transaction-level code
 
-The `gl_codes` table must support all three. `object_code` and `sub_object_code_id` are nullable. `code_string` is the canonical dotted display form and is unique.
+The `gl_codes` table must support all three. `object_code` and `sub_object_code_id` are nullable. `code_string` is the canonical dotted display form and is unique. Segments must still appear in positional order in the string — an object code cannot be attached without a division present, and a sub-object code cannot be attached without an object code — but this is a string-formation rule, not a claim that object/sub-object _identity_ depends on division/department/fund.
 
 ### Split funding is real and common
 
@@ -500,7 +507,6 @@ MSB's FY runs July 1 – June 30. FY27 = July 2026 through June 2027. Always sto
 - Do not suggest storing GL codes as a single string column without also storing the parsed segments.
 - Do not suggest single-GL foreign keys on budget line items. Split funding is required from v1.
 - Do not add columns for fiscal years (`fy27_cost`, `fy28_cost`). Use rows.
-- Do not build authentication, user management, or "forgot password" flows. Entra owns identity.
 - Do not build actuals tracking, encumbrance tracking, PO management, or invoice matching. Those live in New World.
 - Do not use emojis in UI copy, commit messages, or documentation.
 - Do not commit `.env`, credentials, or any Borough-internal data (real GL strings tied to real budgets, real employee names) to the repo. Fixtures use fake data.

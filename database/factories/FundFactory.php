@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\FundType;
 use App\Models\Fund;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,7 +21,7 @@ class FundFactory extends Factory
         return [
             'code' => fake()->unique()->numerify('###'),
             'name' => fake()->words(3, true),
-            'fund_type' => fake()->randomElement(['areawide', 'non_areawide', 'service_area', 'enterprise']),
+            'fund_type' => fake()->randomElement(FundType::cases()),
             'active' => true,
         ];
     }

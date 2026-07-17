@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ObjectCodeCategory;
 use App\Models\ObjectCode;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,7 +21,7 @@ class ObjectCodeFactory extends Factory
         return [
             'code' => fake()->unique()->numerify('###'),
             'name' => fake()->words(3, true),
-            'category' => fake()->randomElement(['wages', 'travel', 'supplies', 'equipment', 'software', 'contractual', 'other']),
+            'category' => fake()->randomElement(ObjectCodeCategory::cases()),
             'active' => true,
         ];
     }

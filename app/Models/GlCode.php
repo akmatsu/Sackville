@@ -3,14 +3,28 @@
 namespace App\Models;
 
 use App\Support\Gl\GlCodeString;
+use Database\Factories\GlCodeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GlCode extends Model
 {
-    /** @use HasFactory<\Database\Factories\GlCodeFactory> */
+    /** @use HasFactory<GlCodeFactory> */
     use HasFactory;
+
+    /**
+     * @var list<string>
+     */
+    protected $fillable = [
+        'fund_code',
+        'department_code',
+        'division_id',
+        'object_code',
+        'sub_object_code_id',
+        'label',
+        'active',
+    ];
 
     /**
      * @return array<string, string>

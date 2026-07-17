@@ -15,12 +15,10 @@ return new class extends Migration
             $table->id();
             $table->string('department_code');
             $table->foreign('department_code')->references('code')->on('departments')->cascadeOnDelete();
-            $table->string('code');
+            $table->string('code')->unique();
             $table->string('name');
             $table->boolean('active')->default(true);
             $table->timestamps();
-
-            $table->unique(['department_code', 'code']);
         });
     }
 
