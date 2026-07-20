@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('hardware_replacement_eligible_models', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('hardware_replacement_group_id')
+                ->constrained('hardware_replacement_groups')
+                ->cascadeOnDelete();
+            $table->foreignId('hardware_model_id')
+                ->constrained()
+                ->cascadeOnDelete();
+
+            $table->unique(['hardware_replacement_group_id', 'hardware_model_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('hardware_replacement_eligible_models');
+    }
+};
