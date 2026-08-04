@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/home/f3ve/.config/herd-lite/bin/php",
+            "args": [
+                "/home/f3ve/projects/sackville/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}
