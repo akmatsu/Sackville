@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\SyncRunStatus;
 use App\Models\SyncRun;
+use App\Support\Tdx\TdxClient;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -60,15 +61,19 @@ class SyncTdxHardwareModels implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * TODO: confirm with Freedom / Brooke / Katie, then replace this with the
-     * actual TDX API pull and hardware_models reconciliation. This placeholder
-     * does no work so the scheduling, manual-trigger, and sync_runs logging
-     * pipeline can be exercised before the HTTP integration is built.
+     * TODO: confirm with Freedom / Brooke / Katie, then reconcile the raw TDX
+     * rows into tdx_assets / hardware_models. For now this only proves
+     * connectivity and reports how many rows TDX returned.
      *
      * @return array{synced: int, failed: int}
      */
     protected function sync(): array
     {
-        return ['synced' => 0, 'failed' => 0];
+        $client = new TdxClient;
+
+        $token = $client->authenticate();
+        $workstations = $client->getWorkstations($token);
+
+        return ['synced' => count($workstations), 'failed' => 0];
     }
 }

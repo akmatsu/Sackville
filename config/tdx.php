@@ -22,4 +22,20 @@ return [
         'timezone' => env('TDX_HARDWARE_SYNC_TIMEZONE', 'America/Anchorage'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | API Connection
+    |--------------------------------------------------------------------------
+    |
+    | Credentials for authenticating against the TDX Web API. See
+    | App\Support\Tdx\TdxClient for how these are used.
+    |
+    */
+
+    'api' => [
+        'base_url' => env('TDX_BASE_URL', 'https://support.matsu.gov/TDWebApi/api'),
+        'username' => env('TDX_USERNAME'),
+        'password' => env('TDX_PASSWORD'),
+    ],
+
 ];
