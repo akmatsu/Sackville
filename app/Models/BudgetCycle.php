@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\BudgetCycleStatus;
 use Database\Factories\BudgetCycleFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,5 +33,15 @@ class BudgetCycle extends Model
     public function lineItems(): HasMany
     {
         return $this->hasMany(BudgetLineItem::class);
+    }
+
+    public function replacementSelections(): HasMany
+    {
+        return $this->hasMany(HardwareReplacementSelection::class);
+    }
+
+    public function scopeOpen(Builder $query): Builder
+    {
+        return $query->where('status', BudgetCycleStatus::Open);
     }
 }
