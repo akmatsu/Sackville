@@ -23,14 +23,37 @@ class TdxAssetsTable
                 TextColumn::make('model.name')
                     ->label('Model')
                     ->sortable(),
+                TextColumn::make('status')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'Surplus' => 'danger',
+                        'Production' => 'success',
+                        null => 'gray',
+                        default => 'warning',
+                    })
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('assigned_user_upn')
                     ->label('Assigned user')
                     ->searchable(),
                 TextColumn::make('division.name')
-                    ->label('Division')
+                    ->label('Responsible division')
+                    ->placeholder('—')
+                    ->sortable(),
+                TextColumn::make('assigned_location_name')
+                    ->label('Location')
+                    ->placeholder('—')
+                    ->searchable(),
+                TextColumn::make('glCode.code_string')
+                    ->label('GL code')
+                    ->placeholder('—')
                     ->sortable(),
                 TextColumn::make('fy_replacement')
                     ->label('FY replacement')
+                    ->sortable(),
+                TextColumn::make('warranty_ends_at')
+                    ->label('Warranty ends')
+                    ->date()
                     ->sortable(),
                 TextColumn::make('last_synced_at')
                     ->label('Last synced')
@@ -39,8 +62,15 @@ class TdxAssetsTable
             ])
             ->defaultSort('last_synced_at', 'desc')
             ->filters([
+                SelectFilter::make('status')
+                    ->options(fn () => TdxAsset::query()
+                        ->whereNotNull('status')
+                        ->distinct()
+                        ->orderBy('status')
+                        ->pluck('status', 'status')
+                        ->all()),
                 SelectFilter::make('assigned_division_id')
-                    ->label('Division')
+                    ->label('Responsible division')
                     ->relationship('division', 'name'),
                 SelectFilter::make('fy_replacement')
                     ->label('FY replacement')

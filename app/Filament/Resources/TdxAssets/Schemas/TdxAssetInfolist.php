@@ -20,20 +20,43 @@ class TdxAssetInfolist
                     TextEntry::make('serial'),
                     TextEntry::make('model.name')
                         ->label('Model'),
+                    TextEntry::make('status')
+                        ->badge()
+                        ->color(fn (?string $state): string => match ($state) {
+                            'Surplus' => 'danger',
+                            'Production' => 'success',
+                            null => 'gray',
+                            default => 'warning',
+                        }),
+                    TextEntry::make('description'),
                     TextEntry::make('assigned_user_upn')
                         ->label('Assigned user'),
-                    TextEntry::make('assigned_department_code')
-                        ->label('Department code'),
-                    TextEntry::make('division.name')
-                        ->label('Division'),
                     TextEntry::make('acquired_at')
                         ->label('Acquired')
                         ->date(),
                     TextEntry::make('fy_replacement')
                         ->label('FY replacement'),
+                    TextEntry::make('warranty_ends_at')
+                        ->label('Warranty ends')
+                        ->date(),
                     TextEntry::make('last_synced_at')
                         ->label('Last synced')
                         ->dateTime(),
+                ]),
+                Fieldset::make('Funding')->columns(3)->schema([
+                    TextEntry::make('assigned_department_code')
+                        ->label('Responsible department')
+                        ->placeholder('—'),
+                    TextEntry::make('division.name')
+                        ->label('Responsible division')
+                        ->placeholder('—'),
+                    TextEntry::make('assigned_location_name')
+                        ->label('Location')
+                        ->placeholder('—'),
+                    TextEntry::make('glCode.code_string')
+                        ->label('GL code')
+                        ->placeholder('—')
+                        ->helperText('What this is coded to in the budget — independent of the responsible department/division above, since IT funds hardware for every department.'),
                 ]),
                 TextEntry::make('raw_payload')
                     ->label('Raw TDX payload')
