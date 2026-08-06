@@ -15,6 +15,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call([
+            HardwareVendorsSeeder::class,
+            HardwareCategoriesSeeder::class,
+            HardwareModelsWorkstationSeeder::class,
+            HardwareModelsMobileSeeder::class,
+            HardwareModelCostsSeeder::class,
+            HardwareReplacementGroupsSeeder::class,
+        ]);
+
         // User::factory(10)->create();
 
         User::factory()->create([
