@@ -20,8 +20,10 @@ class ResponsibilityFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'scope_type' => 'division',
+            'scope_type' => 'department',
             'scope_value' => fake()->numerify('###'),
+            'responsible_division_id' => null,
+            'responsible_location_id' => null,
             'role' => 'view',
         ];
     }

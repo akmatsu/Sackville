@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property ResponsibilityScopeType $scope_type
- * @property string $scope_value
+ * @property ?string $scope_value
  * @property ResponsibilityRole $role
  */
 class Responsibility extends Model
@@ -26,6 +26,8 @@ class Responsibility extends Model
         'user_id',
         'scope_type',
         'scope_value',
+        'responsible_division_id',
+        'responsible_location_id',
         'role',
     ];
 
@@ -45,6 +47,16 @@ class Responsibility extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function responsibleDivision(): BelongsTo
+    {
+        return $this->belongsTo(ResponsibleDivision::class);
+    }
+
+    public function responsibleLocation(): BelongsTo
+    {
+        return $this->belongsTo(ResponsibleLocation::class);
+    }
+
     /**
      * Whether this responsibility's scope covers the given TDX asset.
      *
@@ -54,7 +66,10 @@ class Responsibility extends Model
     public function matchesAsset(TdxAsset $asset): bool
     {
         return match ($this->scope_type) {
-            ResponsibilityScopeType::Division => $asset->division?->code === $this->scope_value,
+            ResponsibilityScopeType::Division => $this->responsible_division_id !== null
+                && $this->responsible_division_id === $asset->responsible_division_id,
+            ResponsibilityScopeType::Location => $this->responsible_location_id !== null
+                && $this->responsible_location_id === $asset->responsible_location_id,
             ResponsibilityScopeType::Department => $asset->assigned_department_code === $this->scope_value,
             ResponsibilityScopeType::Fund => $asset->glCode?->fund_code === $this->scope_value,
             ResponsibilityScopeType::Object => $asset->glCode?->object_code === $this->scope_value,

@@ -25,10 +25,11 @@ class TdxAsset extends Model
         'asset_tag',
         'serial',
         'hardware_model_id',
+        'has_docking_station',
         'assigned_user_upn',
         'assigned_department_code',
-        'assigned_division_id',
-        'assigned_location_name',
+        'responsible_division_id',
+        'responsible_location_id',
         'gl_code_id',
         'acquired_at',
         'fy_replacement',
@@ -38,6 +39,7 @@ class TdxAsset extends Model
     ];
 
     protected $casts = [
+        'has_docking_station' => 'boolean',
         'acquired_at' => 'date',
         'warranty_ends_at' => 'date',
         'last_synced_at' => 'datetime',
@@ -49,9 +51,14 @@ class TdxAsset extends Model
         return $this->belongsTo(HardwareModel::class, 'hardware_model_id');
     }
 
-    public function division(): BelongsTo
+    public function responsibleDivision(): BelongsTo
     {
-        return $this->belongsTo(Division::class, 'assigned_division_id');
+        return $this->belongsTo(ResponsibleDivision::class);
+    }
+
+    public function responsibleLocation(): BelongsTo
+    {
+        return $this->belongsTo(ResponsibleLocation::class);
     }
 
     public function glCode(): BelongsTo
@@ -62,6 +69,23 @@ class TdxAsset extends Model
     public function replacementSelections(): HasMany
     {
         return $this->hasMany(HardwareReplacementSelection::class);
+    }
+
+    /**
+     * Scope assets eligible for replacement selection in $cycle: assets in the
+     * given hardware category whose fy_replacement has arrived or passed, that
+     * haven't already had a real replacement model picked in an earlier cycle
+     * (an opt-out doesn't count, since deferring isn't the same as replaced).
+     */
+    public function scopeEligibleForReplacement(Builder $query, string $categoryName, BudgetCycle $cycle): Builder
+    {
+        return $query
+            ->whereHas('model.category', fn (Builder $query) => $query->where('name', $categoryName))
+            ->where('fy_replacement', '<=', $cycle->fiscal_year)
+            ->whereDoesntHave(
+                'replacementSelections',
+                fn (Builder $query) => $query->where('budget_cycle_id', '!=', $cycle->id)->whereNotNull('hardware_model_id')
+            );
     }
 
     /**
@@ -81,10 +105,12 @@ class TdxAsset extends Model
         return $query->where(function (Builder $query) use ($responsibilities): void {
             foreach ($responsibilities as $responsibility) {
                 $query->orWhere(fn (Builder $query): Builder => match ($responsibility->scope_type) {
-                    ResponsibilityScopeType::Division => $query->whereHas(
-                        'division',
-                        fn (Builder $query) => $query->where('code', $responsibility->scope_value)
-                    ),
+                    ResponsibilityScopeType::Division => $responsibility->responsible_division_id !== null
+                        ? $query->where('responsible_division_id', $responsibility->responsible_division_id)
+                        : $query->whereRaw('1 = 0'),
+                    ResponsibilityScopeType::Location => $responsibility->responsible_location_id !== null
+                        ? $query->where('responsible_location_id', $responsibility->responsible_location_id)
+                        : $query->whereRaw('1 = 0'),
                     ResponsibilityScopeType::Department => $query->where(
                         'assigned_department_code',
                         $responsibility->scope_value

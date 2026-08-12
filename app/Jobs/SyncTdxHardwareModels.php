@@ -12,6 +12,8 @@ use App\Models\GlCode;
 use App\Models\HardwareCategory;
 use App\Models\HardwareModel;
 use App\Models\ObjectCode;
+use App\Models\ResponsibleDivision;
+use App\Models\ResponsibleLocation;
 use App\Models\SubObjectCode;
 use App\Models\SyncRun;
 use App\Models\TdxAsset;
@@ -41,6 +43,11 @@ class SyncTdxHardwareModels implements ShouldBeUnique, ShouldQueue
     private const ATTR_WARRANTY_END = 2113;
 
     private const ATTR_DESCRIPTION = 2114;
+
+    // TODO: confirm with Freedom / Brooke / Katie whether TDX tracks docking
+    // station status anywhere (not present in report 362 as of 2026-08-12).
+    // Until then, has_docking_station is left unset by sync and can only be
+    // populated manually.
 
     /**
      * Object/sub-object code for workstation replacements, confirmed with
@@ -197,8 +204,8 @@ class SyncTdxHardwareModels implements ShouldBeUnique, ShouldQueue
                 'hardware_model_id' => $this->resolveHardwareModel($row)?->id,
                 'assigned_user_upn' => $this->stringOrNull($row['OwningCustomerName'] ?? null),
                 'assigned_department_code' => $responsibleOrg['department_code'],
-                'assigned_division_id' => $responsibleOrg['division_id'],
-                'assigned_location_name' => $responsibleOrg['location_name'],
+                'responsible_division_id' => $responsibleOrg['responsible_division_id'],
+                'responsible_location_id' => $responsibleOrg['responsible_location_id'],
                 'gl_code_id' => $funding !== null
                     ? $this->resolveGlCode($funding['fund_code'], $funding['department_code'], $funding['division_code'])->id
                     : null,
@@ -264,51 +271,75 @@ class SyncTdxHardwareModels implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Resolves the responsible department/division named in the funding
-     * field against existing reference data. This is find-only — TDX gives
-     * us names, not codes, for this hierarchy, so there's nothing to key an
-     * auto-created row on. Unmatched departments fall back to storing the
-     * raw name (assigned_department_code has no FK constraint); unmatched
-     * divisions are left null (assigned_division_id is a real FK).
+     * Resolves the responsible department/division/location named in the
+     * funding field. This hierarchy is entirely independent of the GL
+     * hierarchy resolved by resolveGlCode() below — confirmed with Katie and
+     * Brooke, and confirmed the hard way: an earlier version of this method
+     * tried to key the responsible division off the GL segment's division
+     * code, which silently mis-attributed assets to unrelated, already-
+     * existing GL divisions that happened to share that code. TDX's
+     * responsible org labels (e.g. IT's own internal team groupings like
+     * "Business Operations") have no relationship to the borough's formal
+     * chart-of-accounts departments/divisions tables, so they're resolved
+     * against dedicated `responsible_divisions`/`responsible_locations`
+     * tables instead, isolated from GL and safe to auto-create into.
+     *
+     * Department: always the raw name as parsed — no lookup or auto-create
+     * against the real `departments` table (that's a GL-hierarchy concept).
+     *
+     * Division: matched by (department name, division name), case/whitespace
+     * -insensitive, within `responsible_divisions`. Auto-created when
+     * unmatched — safe, since this table shares no codespace with anything
+     * else.
+     *
+     * Location: only resolved when a division resolved and the funding
+     * string's optional third segment is present. Matched/auto-created the
+     * same way as division, nested under the resolved division.
      *
      * @param  array{department_name: ?string, division_name: ?string, location_name: ?string}|null  $funding
-     * @return array{department_code: ?string, division_id: ?int, location_name: ?string}
+     * @return array{department_code: ?string, responsible_division_id: ?int, responsible_location_id: ?int}
      */
     protected function resolveResponsibleOrg(?array $funding): array
     {
         if ($funding === null) {
-            return ['department_code' => null, 'division_id' => null, 'location_name' => null];
+            return ['department_code' => null, 'responsible_division_id' => null, 'responsible_location_id' => null];
         }
 
         $departmentName = $funding['department_name'];
-        $department = $departmentName !== null ? Department::where('name', $departmentName)->first() : null;
-
-        if ($departmentName !== null && $department === null) {
-            Log::warning('Could not resolve the responsible department name to a known department; storing the raw name.', [
-                'name' => $departmentName,
-            ]);
-        }
-
         $divisionName = $funding['division_name'];
         $division = null;
 
-        if ($divisionName !== null && $department !== null) {
-            $division = Division::where('name', $divisionName)
-                ->where('department_code', $department->code)
+        if ($departmentName !== null && $divisionName !== null) {
+            $division = ResponsibleDivision::whereRaw('lower(trim(department_name)) = lower(trim(?))', [$departmentName])
+                ->whereRaw('lower(trim(name)) = lower(trim(?))', [$divisionName])
                 ->first();
 
-            if ($division === null) {
-                Log::warning('Could not resolve the responsible division name to a known division; leaving it unset.', [
-                    'department_code' => $department->code,
-                    'name' => $divisionName,
-                ]);
-            }
+            $division ??= ResponsibleDivision::create([
+                'department_name' => $departmentName,
+                'name' => $divisionName,
+                'active' => true,
+            ]);
+        }
+
+        $locationName = $funding['location_name'];
+        $location = null;
+
+        if ($division !== null && $locationName !== null) {
+            $location = ResponsibleLocation::where('responsible_division_id', $division->id)
+                ->whereRaw('lower(trim(name)) = lower(trim(?))', [$locationName])
+                ->first();
+
+            $location ??= ResponsibleLocation::create([
+                'responsible_division_id' => $division->id,
+                'name' => $locationName,
+                'active' => true,
+            ]);
         }
 
         return [
-            'department_code' => $department?->code ?? $departmentName,
-            'division_id' => $division?->id,
-            'location_name' => $funding['location_name'],
+            'department_code' => $departmentName,
+            'responsible_division_id' => $division?->id,
+            'responsible_location_id' => $location?->id,
         ];
     }
 

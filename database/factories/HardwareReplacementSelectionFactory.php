@@ -25,6 +25,7 @@ class HardwareReplacementSelectionFactory extends Factory
             'budget_cycle_id' => BudgetCycle::factory(),
             'tdx_asset_id' => TdxAsset::factory(),
             'hardware_model_id' => HardwareModel::factory(),
+            'opted_out' => false,
             'with_docking' => false,
             'notes' => null,
             'selected_by_id' => User::factory(),

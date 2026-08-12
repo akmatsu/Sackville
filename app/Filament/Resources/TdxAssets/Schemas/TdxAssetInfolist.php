@@ -47,10 +47,10 @@ class TdxAssetInfolist
                     TextEntry::make('assigned_department_code')
                         ->label('Responsible department')
                         ->placeholder('—'),
-                    TextEntry::make('division.name')
+                    TextEntry::make('responsibleDivision.name')
                         ->label('Responsible division')
                         ->placeholder('—'),
-                    TextEntry::make('assigned_location_name')
+                    TextEntry::make('responsibleLocation.name')
                         ->label('Location')
                         ->placeholder('—'),
                     TextEntry::make('glCode.code_string')

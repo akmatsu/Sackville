@@ -4,6 +4,8 @@ use App\Filament\Resources\TdxAssets\Pages\ListTdxAssets;
 use App\Filament\Resources\TdxAssets\Pages\ViewTdxAsset;
 use App\Models\Division;
 use App\Models\GlCode;
+use App\Models\ResponsibleDivision;
+use App\Models\ResponsibleLocation;
 use App\Models\TdxAsset;
 use App\Models\User;
 
@@ -46,24 +48,27 @@ it('shows status and warranty columns in the table', function () {
 });
 
 it('shows the responsible division, location, and GL code in the table and view page', function () {
-    $division = Division::factory()->create();
-    $glCode = GlCode::factory()->for($division)->create();
+    $glCodeDivision = Division::factory()->create();
+    $glCode = GlCode::factory()->for($glCodeDivision)->create();
+
+    $responsibleDivision = ResponsibleDivision::factory()->create();
+    $responsibleLocation = ResponsibleLocation::factory()->create(['responsible_division_id' => $responsibleDivision->id, 'name' => 'Willow']);
 
     $asset = TdxAsset::factory()->create([
-        'assigned_division_id' => $division->id,
-        'assigned_location_name' => 'Willow',
+        'responsible_division_id' => $responsibleDivision->id,
+        'responsible_location_id' => $responsibleLocation->id,
         'gl_code_id' => $glCode->id,
     ]);
 
     livewire(ListTdxAssets::class)
-        ->assertTableColumnStateSet('division.name', $division->name, $asset)
-        ->assertTableColumnStateSet('assigned_location_name', 'Willow', $asset)
+        ->assertTableColumnStateSet('responsibleDivision.name', $responsibleDivision->name, $asset)
+        ->assertTableColumnStateSet('responsibleLocation.name', 'Willow', $asset)
         ->assertTableColumnStateSet('glCode.code_string', $glCode->code_string, $asset);
 
     livewire(ViewTdxAsset::class, ['record' => $asset->getKey()])
         ->assertOk()
         ->assertSchemaStateSet([
-            'assigned_location_name' => 'Willow',
+            'responsibleLocation.name' => 'Willow',
         ]);
 });
 

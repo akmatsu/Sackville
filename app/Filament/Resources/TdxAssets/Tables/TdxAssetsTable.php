@@ -36,14 +36,14 @@ class TdxAssetsTable
                 TextColumn::make('assigned_user_upn')
                     ->label('Assigned user')
                     ->searchable(),
-                TextColumn::make('division.name')
+                TextColumn::make('responsibleDivision.name')
                     ->label('Responsible division')
                     ->placeholder('—')
                     ->sortable(),
-                TextColumn::make('assigned_location_name')
+                TextColumn::make('responsibleLocation.name')
                     ->label('Location')
                     ->placeholder('—')
-                    ->searchable(),
+                    ->sortable(),
                 TextColumn::make('glCode.code_string')
                     ->label('GL code')
                     ->placeholder('—')
@@ -69,9 +69,9 @@ class TdxAssetsTable
                         ->orderBy('status')
                         ->pluck('status', 'status')
                         ->all()),
-                SelectFilter::make('assigned_division_id')
+                SelectFilter::make('responsible_division_id')
                     ->label('Responsible division')
-                    ->relationship('division', 'name'),
+                    ->relationship('responsibleDivision', 'name'),
                 SelectFilter::make('fy_replacement')
                     ->label('FY replacement')
                     ->options(fn () => TdxAsset::query()

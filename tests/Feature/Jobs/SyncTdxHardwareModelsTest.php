@@ -8,6 +8,8 @@ use App\Models\Fund;
 use App\Models\GlCode;
 use App\Models\HardwareCategory;
 use App\Models\HardwareModel;
+use App\Models\ResponsibleDivision;
+use App\Models\ResponsibleLocation;
 use App\Models\SyncRun;
 use App\Models\TdxAsset;
 use App\Models\Vendor;
@@ -173,30 +175,26 @@ it('leaves hardware_model_id null when TDX does not supply a manufacturer or mod
 });
 
 it('resolves the responsible department/division and the GL code as two independent hierarchies', function () {
-    $publicWorks = Department::factory()->create(['code' => '150', 'name' => 'Public Works']);
-    $projectMgmt = Division::factory()->create([
-        'department_code' => $publicWorks->code,
-        'code' => '900',
-        'name' => 'Project Mgmt',
-    ]);
-
     fakeTdxReports([[fakeTdxWorkstationRow([2110 => 'Public Works - Project Mgmt -  100.115.122'])]]);
 
     (new SyncTdxHardwareModels)->handle();
 
     $asset = TdxAsset::where('tdx_asset_id', '352')->firstOrFail();
 
-    // The "responsible" org (who it's for) resolves to the real Public
-    // Works / Project Mgmt division...
-    expect($asset->assigned_department_code)->toBe('150');
-    expect($asset->assigned_division_id)->toBe($projectMgmt->id);
-    expect($asset->assigned_location_name)->toBeNull();
+    // The "responsible" org (who it's for) is stored as plain text and
+    // resolved into its own isolated table...
+    expect($asset->assigned_department_code)->toBe('Public Works');
+
+    $division = ResponsibleDivision::findOrFail($asset->responsible_division_id);
+    expect($division->department_name)->toBe('Public Works');
+    expect($division->name)->toBe('Project Mgmt');
+    expect($division->active)->toBeTrue();
+    expect($asset->responsible_location_id)->toBeNull();
 
     // ...while the GL code (what it's coded to) is IT's own 100.115.122,
-    // an entirely different division than "Project Mgmt".
+    // resolved entirely independently via the real chart-of-accounts tables.
     $glCode = GlCode::findOrFail($asset->gl_code_id);
     expect($glCode->code_string)->toBe('100.115.122.434.000');
-    expect($glCode->division_id)->not->toBe($projectMgmt->id);
 
     $fund = Fund::findOrFail('100');
     expect($fund->name)->toBe('General Fund');
@@ -207,26 +205,45 @@ it('resolves the responsible department/division and the GL code as two independ
     expect($glDepartment->active)->toBeTrue();
 
     // The GL division (122) has no name TDX can give us, so it's an
-    // inactive placeholder pending review in the admin screens.
+    // inactive placeholder pending review in the admin screens — a
+    // completely separate row from the responsible ResponsibleDivision above.
     $glDivision = Division::where('code', '122')->firstOrFail();
     expect($glDivision->active)->toBeFalse();
 });
 
-it('captures the optional third level as a location name', function () {
+it('leaves the responsible location null when the funding field has no third segment', function () {
+    fakeTdxReports([[fakeTdxWorkstationRow([2110 => 'Public Works - Project Mgmt -  100.115.122'])]]);
+
+    (new SyncTdxHardwareModels)->handle();
+
+    $asset = TdxAsset::where('tdx_asset_id', '352')->firstOrFail();
+
+    expect($asset->responsible_division_id)->not->toBeNull();
+    expect($asset->responsible_location_id)->toBeNull();
+    expect(ResponsibleLocation::count())->toBe(0);
+});
+
+it('captures the optional third level as a responsible location nested under the resolved division', function () {
     fakeTdxReports([[fakeTdxWorkstationRow([2110 => 'Community Development - Library - Willow -  200.170.507'])]]);
 
     (new SyncTdxHardwareModels)->handle();
 
     $asset = TdxAsset::where('tdx_asset_id', '352')->firstOrFail();
 
-    expect($asset->assigned_location_name)->toBe('Willow');
+    $division = ResponsibleDivision::findOrFail($asset->responsible_division_id);
+    expect($division->department_name)->toBe('Community Development');
+    expect($division->name)->toBe('Library');
+
+    $location = ResponsibleLocation::findOrFail($asset->responsible_location_id);
+    expect($location->name)->toBe('Willow');
+    expect($location->responsible_division_id)->toBe($division->id);
 
     $glCode = GlCode::findOrFail($asset->gl_code_id);
     expect($glCode->code_string)->toBe('200.170.507.434.000');
     expect(Fund::findOrFail('200')->fund_type->value)->toBe('non_areawide');
 });
 
-it('falls back to the raw department name when it does not match a known department', function () {
+it('always stores the raw responsible department name, with no lookup against the real departments table', function () {
     fakeTdxReports([[fakeTdxWorkstationRow([2110 => 'Some Unknown Department - Some Division -  100.115.122'])]]);
 
     (new SyncTdxHardwareModels)->handle();
@@ -234,8 +251,61 @@ it('falls back to the raw department name when it does not match a known departm
     assertDatabaseHas(TdxAsset::class, [
         'tdx_asset_id' => '352',
         'assigned_department_code' => 'Some Unknown Department',
-        'assigned_division_id' => null,
     ]);
+
+    $asset = TdxAsset::where('tdx_asset_id', '352')->firstOrFail();
+    expect(ResponsibleDivision::findOrFail($asset->responsible_division_id)->department_name)->toBe('Some Unknown Department');
+});
+
+it('matches an existing responsible division case- and whitespace-insensitively', function () {
+    $gis = ResponsibleDivision::factory()->create(['department_name' => 'Information Technology', 'name' => 'GIS']);
+
+    fakeTdxReports([[fakeTdxWorkstationRow([2110 => 'Information Technology -  gis  -  100.115.900'])]]);
+
+    (new SyncTdxHardwareModels)->handle();
+
+    $asset = TdxAsset::where('tdx_asset_id', '352')->firstOrFail();
+    expect($asset->responsible_division_id)->toBe($gis->id);
+    expect(ResponsibleDivision::count())->toBe(1);
+});
+
+it('matches an existing responsible location case- and whitespace-insensitively', function () {
+    $division = ResponsibleDivision::factory()->create(['department_name' => 'Community Development', 'name' => 'Library']);
+    $willow = ResponsibleLocation::factory()->create(['responsible_division_id' => $division->id, 'name' => 'Willow']);
+
+    fakeTdxReports([[fakeTdxWorkstationRow([2110 => 'Community Development - Library -  willow  -  200.170.507'])]]);
+
+    (new SyncTdxHardwareModels)->handle();
+
+    $asset = TdxAsset::where('tdx_asset_id', '352')->firstOrFail();
+    expect($asset->responsible_location_id)->toBe($willow->id);
+    expect(ResponsibleLocation::count())->toBe(1);
+});
+
+it('auto-creates an unmatched responsible division, active and independent of any GL code', function () {
+    fakeTdxReports([[fakeTdxWorkstationRow([2110 => 'Information Technology - GIS -  100.115.900'])]]);
+
+    (new SyncTdxHardwareModels)->handle();
+
+    $asset = TdxAsset::where('tdx_asset_id', '352')->firstOrFail();
+    $division = ResponsibleDivision::findOrFail($asset->responsible_division_id);
+
+    expect($division->department_name)->toBe('Information Technology');
+    expect($division->name)->toBe('GIS');
+    expect($division->active)->toBeTrue();
+});
+
+it('does not duplicate auto-created responsible division or location rows across repeated syncs', function () {
+    fakeTdxReports([
+        [fakeTdxWorkstationRow([2110 => 'Community Development - Library - Willow -  200.170.507'])],
+        [fakeTdxWorkstationRow([2110 => 'Community Development - Library - Willow -  200.170.507'])],
+    ]);
+
+    (new SyncTdxHardwareModels)->handle();
+    (new SyncTdxHardwareModels)->handle();
+
+    assertDatabaseCount(ResponsibleDivision::class, 1);
+    assertDatabaseCount(ResponsibleLocation::class, 1);
 });
 
 it('leaves gl_code_id null without failing the row when the funding field is malformed', function () {

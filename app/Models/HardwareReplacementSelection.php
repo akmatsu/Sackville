@@ -19,12 +19,14 @@ class HardwareReplacementSelection extends Model
         'budget_cycle_id',
         'tdx_asset_id',
         'hardware_model_id',
+        'opted_out',
         'with_docking',
         'notes',
         'selected_by_id',
     ];
 
     protected $casts = [
+        'opted_out' => 'boolean',
         'with_docking' => 'boolean',
     ];
 
