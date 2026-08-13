@@ -6,6 +6,7 @@ use Database\Factories\HardwareModelFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HardwareModel extends Model
@@ -43,5 +44,15 @@ class HardwareModel extends Model
     public function costs(): HasMany
     {
         return $this->hasMany(HardwareModelCost::class);
+    }
+
+    public function hardwareReplacementGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            HardwareReplacementGroup::class,
+            'hardware_replacement_eligible_models',
+            'hardware_model_id',
+            'hardware_replacement_group_id'
+        );
     }
 }

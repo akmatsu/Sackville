@@ -9,6 +9,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::livewire('workstations/replacements', 'pages::workstations.replacements')
         ->name('workstations.replacements');
+
+    Route::livewire('mobile/replacements', 'pages::mobile.replacements')
+        ->name('mobile.replacements');
 });
 
 require __DIR__.'/settings.php';

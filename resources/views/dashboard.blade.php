@@ -3,6 +3,7 @@
         <div class="grid auto-rows-min gap-4 md:grid-cols-3">
             <livewire:dashboard.budget-cycle-status />
             <livewire:dashboard.workstation-replacement-status />
+            <livewire:dashboard.mobile-replacement-status />
             <div
                 class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
                 <x-placeholder-pattern

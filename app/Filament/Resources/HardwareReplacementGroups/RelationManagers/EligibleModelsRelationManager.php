@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\HardwareReplacementGroups\RelationManagers;
 
+use App\Filament\Imports\HardwareModelImporter;
 use Filament\Actions\AttachAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DetachAction;
 use Filament\Actions\DetachBulkAction;
+use Filament\Actions\ImportAction;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -29,6 +31,10 @@ class EligibleModelsRelationManager extends RelationManager
             ])
             ->headerActions([
                 AttachAction::make(),
+                ImportAction::make()
+                    ->importer(HardwareModelImporter::class)
+                    ->label('Import models')
+                    ->options(fn (): array => ['hardware_replacement_group_id' => $this->getOwnerRecord()->getKey()]),
             ])
             ->recordActions([
                 DetachAction::make(),

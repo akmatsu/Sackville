@@ -18,6 +18,9 @@
                     <flux:sidebar.item icon="computer-desktop" :href="route('workstations.replacements')" :current="request()->routeIs('workstations.replacements')" wire:navigate>
                         {{ __('Workstation Replacements') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="device-phone-mobile" :href="route('mobile.replacements')" :current="request()->routeIs('mobile.replacements')" wire:navigate>
+                        {{ __('Mobile Replacements') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
