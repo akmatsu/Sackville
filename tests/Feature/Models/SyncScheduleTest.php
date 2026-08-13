@@ -2,6 +2,7 @@
 
 use App\Enums\SyncFrequency;
 use App\Models\SyncSchedule;
+use Illuminate\Support\Facades\Schema;
 
 it('seeds a default daily tdx schedule via migration', function () {
     $schedule = SyncSchedule::query()->firstWhere('integration', 'tdx');
@@ -55,4 +56,18 @@ it('falls back to the mobile_sync config defaults when no tdx-mobile schedule ro
     expect($schedule->exists)->toBeFalse();
     expect($schedule->frequency)->toBe(SyncFrequency::Daily);
     expect($schedule->time_of_day)->toBe(config('tdx.mobile_sync.time_of_day'));
+});
+
+it('falls back to config defaults instead of throwing when the database is unreachable', function () {
+    // Simulates routes/console.php being loaded before the database exists,
+    // e.g. during `composer install`'s package:discover step in CI.
+    Schema::shouldReceive('hasTable')
+        ->with('sync_schedules')
+        ->andThrow(new PDOException('simulated: database unreachable'));
+
+    $schedule = SyncSchedule::forIntegration('tdx');
+
+    expect($schedule->exists)->toBeFalse();
+    expect($schedule->frequency)->toBe(SyncFrequency::Daily);
+    expect($schedule->time_of_day)->toBe(config('tdx.hardware_sync.time_of_day'));
 });

@@ -31,13 +31,21 @@ class SyncSchedule extends Model
 
     /**
      * The configured schedule for an integration, falling back to config
-     * defaults if no row exists yet (e.g. before this table is migrated).
+     * defaults if no row exists yet (e.g. before this table is migrated,
+     * or before the database itself is reachable at all — this is loaded
+     * from routes/console.php, which runs on every artisan invocation,
+     * including ones like `package:discover` that fire during `composer
+     * install` before the database file has been created).
      */
     public static function forIntegration(string $integration): self
     {
-        $schedule = Schema::hasTable('sync_schedules')
-            ? static::query()->firstWhere('integration', $integration)
-            : null;
+        try {
+            $schedule = Schema::hasTable('sync_schedules')
+                ? static::query()->firstWhere('integration', $integration)
+                : null;
+        } catch (\Throwable) {
+            $schedule = null;
+        }
 
         $configSection = static::configSectionFor($integration);
 
