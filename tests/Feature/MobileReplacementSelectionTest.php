@@ -572,6 +572,65 @@ test('the carrier and plan status render from the linked TDX mobile plan', funct
         ->assertSee('Active');
 });
 
+test('the description column renders the asset description', function () {
+    $user = User::factory()->create();
+    ['division' => $division] = setUpMobileReplacementFixtures([
+        'description' => 'Dispatch tablet',
+    ]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    livewire('pages::mobile.replacements')
+        ->assertSee('Dispatch tablet');
+});
+
+test('an asset due this cycle shows its FY replacement without a highlight', function () {
+    $user = User::factory()->create();
+    ['division' => $division] = setUpMobileReplacementFixtures(['fy_replacement' => 28]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $html = livewire('pages::mobile.replacements')
+        ->assertSee('FY28')
+        ->html();
+
+    expect($html)->not->toContain('bg-amber');
+});
+
+test('an asset carried over from an earlier fiscal year is highlighted', function () {
+    $user = User::factory()->create();
+    ['division' => $division] = setUpMobileReplacementFixtures(['fy_replacement' => 26]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $html = livewire('pages::mobile.replacements')
+        ->assertSee('FY26')
+        ->html();
+
+    expect($html)->toContain('bg-amber');
+});
+
 test('a manager with edit responsibility can open the edit modal for an asset', function () {
     $user = User::factory()->create();
     ['division' => $division, 'asset' => $asset] = setUpMobileReplacementFixtures();
@@ -671,4 +730,201 @@ test('shows an empty state when there is no open budget cycle', function () {
     livewire('pages::mobile.replacements')
         ->assertOk()
         ->assertSee('No open budget cycle');
+});
+
+test('searching narrows the table to assets matching the search text', function () {
+    $user = User::factory()->create();
+    ['division' => $division, 'currentModel' => $currentModel, 'asset' => $matchingAsset] = setUpMobileReplacementFixtures([
+        'asset_tag' => 'AT-MATCH',
+        'description' => 'Dispatch tablet',
+    ]);
+
+    $otherAsset = TdxAsset::factory()->create([
+        'source' => TdxAssetSource::Mobile,
+        'hardware_model_id' => $currentModel->id,
+        'assigned_department_code' => 'Information Technology',
+        'responsible_division_id' => $division->id,
+        'fy_replacement' => 28,
+        'asset_tag' => 'AT-OTHER',
+        'description' => 'Field phone',
+    ]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    livewire('pages::mobile.replacements')
+        ->assertSee($matchingAsset->asset_tag)
+        ->assertSee($otherAsset->asset_tag)
+        ->set('search', 'Dispatch')
+        ->assertSee($matchingAsset->asset_tag)
+        ->assertDontSee($otherAsset->asset_tag);
+});
+
+test('a search with no matches shows a no-matches state', function () {
+    $user = User::factory()->create();
+    ['division' => $division, 'asset' => $asset] = setUpMobileReplacementFixtures();
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    livewire('pages::mobile.replacements')
+        ->set('search', 'no-such-asset-xyz')
+        ->assertSee('No matches')
+        ->assertDontSee($asset->asset_tag);
+});
+
+test('the status filter narrows to assets matching the selected status', function () {
+    $user = User::factory()->create();
+    ['division' => $division, 'currentModel' => $currentModel, 'replacementModel' => $replacementModel, 'asset' => $pendingAsset] = setUpMobileReplacementFixtures([
+        'asset_tag' => 'AT-PENDING',
+    ]);
+
+    $selectedAsset = TdxAsset::factory()->create([
+        'source' => TdxAssetSource::Mobile,
+        'hardware_model_id' => $currentModel->id,
+        'assigned_department_code' => 'Information Technology',
+        'responsible_division_id' => $division->id,
+        'fy_replacement' => 28,
+        'asset_tag' => 'AT-SELECTED',
+    ]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'edit',
+    ]);
+
+    $this->actingAs($user);
+
+    $component = livewire('pages::mobile.replacements')
+        ->set("selections.{$selectedAsset->id}.hardware_model_id", $replacementModel->id)
+        ->call('save', $selectedAsset->id);
+
+    $component->set('statusFilter', 'selected')
+        ->assertSee($selectedAsset->asset_tag)
+        ->assertDontSee($pendingAsset->asset_tag);
+
+    $component->set('statusFilter', 'pending')
+        ->assertSee($pendingAsset->asset_tag)
+        ->assertDontSee($selectedAsset->asset_tag);
+});
+
+test('the cycle filter narrows to carried-over or current-cycle assets', function () {
+    $user = User::factory()->create();
+    ['division' => $division, 'currentModel' => $currentModel, 'asset' => $currentAsset] = setUpMobileReplacementFixtures([
+        'asset_tag' => 'AT-CURRENT',
+        'fy_replacement' => 28,
+    ]);
+
+    $overdueAsset = TdxAsset::factory()->create([
+        'source' => TdxAssetSource::Mobile,
+        'hardware_model_id' => $currentModel->id,
+        'assigned_department_code' => 'Information Technology',
+        'responsible_division_id' => $division->id,
+        'fy_replacement' => 26,
+        'asset_tag' => 'AT-OVERDUE',
+    ]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $component = livewire('pages::mobile.replacements')
+        ->assertSee($currentAsset->asset_tag)
+        ->assertSee($overdueAsset->asset_tag);
+
+    $component->set('cycleFilter', 'overdue')
+        ->assertSee($overdueAsset->asset_tag)
+        ->assertDontSee($currentAsset->asset_tag);
+
+    $component->set('cycleFilter', 'current')
+        ->assertSee($currentAsset->asset_tag)
+        ->assertDontSee($overdueAsset->asset_tag);
+});
+
+test('the division filter narrows to a single division', function () {
+    $user = User::factory()->create();
+    ['division' => $firstDivision, 'currentModel' => $currentModel, 'asset' => $firstAsset] = setUpMobileReplacementFixtures([
+        'asset_tag' => 'AT-FIRST',
+    ]);
+
+    $secondDivision = ResponsibleDivision::factory()->create([
+        'department_name' => 'Information Technology',
+        'name' => 'Field Services',
+    ]);
+
+    $secondAsset = TdxAsset::factory()->create([
+        'source' => TdxAssetSource::Mobile,
+        'hardware_model_id' => $currentModel->id,
+        'assigned_department_code' => 'Information Technology',
+        'responsible_division_id' => $secondDivision->id,
+        'fy_replacement' => 28,
+        'asset_tag' => 'AT-SECOND',
+    ]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $firstDivision->id,
+        'role' => 'view',
+    ]);
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $secondDivision->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    livewire('pages::mobile.replacements')
+        ->assertSee($firstAsset->asset_tag)
+        ->assertSee($secondAsset->asset_tag)
+        ->set('divisionFilter', (string) $firstDivision->id)
+        ->assertSee($firstAsset->asset_tag)
+        ->assertDontSee($secondAsset->asset_tag);
+});
+
+test('resetFilters clears search and all filters', function () {
+    $user = User::factory()->create();
+    ['division' => $division] = setUpMobileReplacementFixtures();
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $component = livewire('pages::mobile.replacements')
+        ->set('search', 'something')
+        ->set('statusFilter', 'pending')
+        ->set('cycleFilter', 'overdue')
+        ->set('divisionFilter', (string) $division->id)
+        ->call('resetFilters');
+
+    expect($component->get('search'))->toBe('');
+    expect($component->get('statusFilter'))->toBe('all');
+    expect($component->get('cycleFilter'))->toBe('all');
+    expect($component->get('divisionFilter'))->toBe('');
 });

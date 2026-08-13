@@ -8,6 +8,7 @@ use App\Models\HardwareModelCost;
 use App\Models\HardwareReplacementGroup;
 use App\Models\HardwareReplacementSelection;
 use App\Models\Responsibility;
+use App\Models\ResponsibleDivision;
 use App\Models\TdxAsset;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -30,9 +31,17 @@ new #[Title('Mobile Device Replacements')] class extends Component {
      */
     public array $collapsedDivisions = [];
 
+    public string $search = '';
+
+    public string $statusFilter = 'all';
+
+    public string $cycleFilter = 'all';
+
+    public string $divisionFilter = '';
+
     public function mount(): void
     {
-        foreach ($this->eligibleAssets as $asset) {
+        foreach ($this->baseEligibleAssets as $asset) {
             $existing = $asset->replacementSelections->first();
 
             $this->selections[$asset->id] = [
@@ -50,9 +59,10 @@ new #[Title('Mobile Device Replacements')] class extends Component {
     }
 
     /**
-     * Eligible assets, sorted by their full department → division → location
-     * breadcrumb so groupedRows() can walk them in a single pass and emit
-     * correct group boundaries.
+     * All assets eligible for replacement this cycle, before search/filters
+     * are applied, sorted by their full department → division → location
+     * breadcrumb so groupedRows() can walk the filtered result in a single
+     * pass and emit correct group boundaries.
      *
      * An asset is eligible once its fy_replacement has arrived or passed
      * (TDX's fy_replacement field isn't reliably bumped forward once an
@@ -63,7 +73,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
      * @return Collection<int, TdxAsset>
      */
     #[Computed]
-    public function eligibleAssets(): Collection
+    public function baseEligibleAssets(): Collection
     {
         $cycle = $this->openCycle;
 
@@ -78,6 +88,114 @@ new #[Title('Mobile Device Replacements')] class extends Component {
             ->get()
             ->sortBy(fn(TdxAsset $asset): string => sprintf('%s|%s|%s|%s', $asset->assigned_department_code ?? '', $asset->responsibleDivision?->name ?? '', $asset->responsibleLocation?->name ?? '', $asset->asset_tag ?? $asset->tdx_asset_id))
             ->values();
+    }
+
+    /**
+     * baseEligibleAssets(), narrowed by the current search text and filters.
+     * This is what the table and its totals are built from.
+     *
+     * @return Collection<int, TdxAsset>
+     */
+    #[Computed]
+    public function eligibleAssets(): Collection
+    {
+        return $this->baseEligibleAssets
+            ->filter(fn(TdxAsset $asset): bool => $this->matchesSearch($asset) && $this->matchesStatus($asset) && $this->matchesCycleFilter($asset) && $this->matchesDivision($asset))
+            ->values();
+    }
+
+    /**
+     * Divisions represented among baseEligibleAssets, for the division
+     * filter's options — scoped to what the user can actually see, and
+     * unaffected by the other filters so switching divisions doesn't hide
+     * itself from the dropdown.
+     *
+     * @return Collection<int, array{id: int, label: string}>
+     */
+    #[Computed]
+    public function availableDivisions(): Collection
+    {
+        return $this->baseEligibleAssets
+            ->pluck('responsibleDivision')
+            ->filter()
+            ->unique('id')
+            ->map(fn(ResponsibleDivision $division): array => [
+                'id' => $division->id,
+                'label' => $this->breadcrumb($division->department_name, $division->name),
+            ])
+            ->sortBy('label')
+            ->values();
+    }
+
+    protected function matchesSearch(TdxAsset $asset): bool
+    {
+        $needle = trim($this->search);
+
+        if ($needle === '') {
+            return true;
+        }
+
+        $needle = mb_strtolower($needle);
+
+        foreach ([$asset->asset_tag, $asset->description, $asset->assigned_user_upn, $asset->model?->name] as $haystack) {
+            if ($haystack !== null && str_contains(mb_strtolower($haystack), $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function matchesStatus(TdxAsset $asset): bool
+    {
+        if ($this->statusFilter === 'all') {
+            return true;
+        }
+
+        $selection = $this->selections[$asset->id] ?? ['hardware_model_id' => null, 'opted_out' => false];
+        $optedOut = (bool) ($selection['opted_out'] ?? false);
+        $hasModel = ($selection['hardware_model_id'] ?? null) !== null && $selection['hardware_model_id'] !== '';
+
+        return match ($this->statusFilter) {
+            'pending' => !$optedOut && !$hasModel,
+            'selected' => !$optedOut && $hasModel,
+            'opted_out' => $optedOut,
+            default => true,
+        };
+    }
+
+    protected function matchesCycleFilter(TdxAsset $asset): bool
+    {
+        if ($this->cycleFilter === 'all') {
+            return true;
+        }
+
+        $cycle = $this->openCycle;
+
+        if (!$cycle || $asset->fy_replacement === null) {
+            return true;
+        }
+
+        $isOverdue = $asset->fy_replacement < $cycle->fiscal_year;
+
+        return $this->cycleFilter === 'overdue' ? $isOverdue : !$isOverdue;
+    }
+
+    protected function matchesDivision(TdxAsset $asset): bool
+    {
+        if ($this->divisionFilter === '') {
+            return true;
+        }
+
+        return $asset->responsible_division_id === (int) $this->divisionFilter;
+    }
+
+    public function resetFilters(): void
+    {
+        $this->search = '';
+        $this->statusFilter = 'all';
+        $this->cycleFilter = 'all';
+        $this->divisionFilter = '';
     }
 
     /**
@@ -116,7 +234,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
 
         $modelIds = $this->eligibleModels
             ->pluck('id')
-            ->merge($this->eligibleAssets->pluck('hardware_model_id')->filter())
+            ->merge($this->baseEligibleAssets->pluck('hardware_model_id')->filter())
             ->unique();
 
         return HardwareModelCost::query()->whereIn('hardware_model_id', $modelIds)->where('fiscal_year', $cycle->fiscal_year)->get()->keyBy(fn(HardwareModelCost $cost): string => $cost->hardware_model_id . ':' . ($cost->with_docking ? '1' : '0'));
@@ -308,12 +426,12 @@ new #[Title('Mobile Device Replacements')] class extends Component {
     #[Computed]
     public function editingAsset(): ?TdxAsset
     {
-        return $this->editingAssetId !== null ? $this->eligibleAssets->firstWhere('id', $this->editingAssetId) : null;
+        return $this->editingAssetId !== null ? $this->baseEligibleAssets->firstWhere('id', $this->editingAssetId) : null;
     }
 
     public function edit(int $tdxAssetId): void
     {
-        $asset = $this->eligibleAssets->firstWhere('id', $tdxAssetId);
+        $asset = $this->baseEligibleAssets->firstWhere('id', $tdxAssetId);
 
         abort_unless($asset && $this->canEdit($asset), 403);
 
@@ -327,7 +445,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
 
     public function save(int $tdxAssetId): void
     {
-        $asset = $this->eligibleAssets->firstWhere('id', $tdxAssetId);
+        $asset = $this->baseEligibleAssets->firstWhere('id', $tdxAssetId);
         $cycle = $this->openCycle;
 
         abort_unless($asset && $cycle && $this->canEdit($asset), 403);
@@ -352,7 +470,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
             ],
         );
 
-        unset($this->eligibleAssets);
+        unset($this->eligibleAssets, $this->baseEligibleAssets);
         $this->editingAssetId = null;
         Flux::modal('edit-replacement')->close();
 
@@ -361,7 +479,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
 
     public function clear(int $tdxAssetId): void
     {
-        $asset = $this->eligibleAssets->firstWhere('id', $tdxAssetId);
+        $asset = $this->baseEligibleAssets->firstWhere('id', $tdxAssetId);
         $cycle = $this->openCycle;
 
         abort_unless($asset && $cycle && $this->canEdit($asset), 403);
@@ -374,7 +492,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
             'notes' => null,
         ];
 
-        unset($this->eligibleAssets);
+        unset($this->eligibleAssets, $this->baseEligibleAssets);
         $this->editingAssetId = null;
         Flux::modal('edit-replacement')->close();
 
@@ -396,7 +514,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                     {{ __('Mobile device replacements can only be selected while a budget cycle is open.') }}
                 </flux:callout.text>
             </flux:callout>
-        @elseif ($this->eligibleAssets->isEmpty())
+        @elseif ($this->baseEligibleAssets->isEmpty())
             <flux:callout icon="information-circle" variant="secondary">
                 <flux:callout.heading>{{ __('Nothing to replace right now') }}</flux:callout.heading>
                 <flux:callout.text>
@@ -404,9 +522,48 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                 </flux:callout.text>
             </flux:callout>
         @else
-            <flux:table>
+            <div class="mb-4 flex flex-wrap items-end gap-4">
+                <div class="min-w-64 flex-1">
+                    <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass"
+                        :placeholder="__('Search asset tag, description, assigned user, or model...')" />
+                </div>
+                <flux:select wire:model.live="statusFilter" class="w-44" :label="__('Status')">
+                    <flux:select.option value="all">{{ __('All statuses') }}</flux:select.option>
+                    <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>
+                    <flux:select.option value="selected">{{ __('Selected') }}</flux:select.option>
+                    <flux:select.option value="opted_out">{{ __('Opted out') }}</flux:select.option>
+                </flux:select>
+                <flux:select wire:model.live="cycleFilter" class="w-44" :label="__('Cycle')">
+                    <flux:select.option value="all">{{ __('All items') }}</flux:select.option>
+                    <flux:select.option value="overdue">{{ __('Carried over') }}</flux:select.option>
+                    <flux:select.option value="current">{{ __('Due this cycle') }}</flux:select.option>
+                </flux:select>
+                <flux:select wire:model.live="divisionFilter" class="w-56" :label="__('Division')">
+                    <flux:select.option value="">{{ __('All divisions') }}</flux:select.option>
+                    @foreach ($this->availableDivisions as $division)
+                        <flux:select.option value="{{ $division['id'] }}">{{ $division['label'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                @if ($this->search !== '' || $this->statusFilter !== 'all' || $this->cycleFilter !== 'all' || $this->divisionFilter !== '')
+                    <flux:button wire:click="resetFilters" variant="ghost" size="sm">
+                        {{ __('Clear filters') }}
+                    </flux:button>
+                @endif
+            </div>
+
+            @if ($this->eligibleAssets->isEmpty())
+                <flux:callout icon="magnifying-glass" variant="secondary">
+                    <flux:callout.heading>{{ __('No matches') }}</flux:callout.heading>
+                    <flux:callout.text>
+                        {{ __('No mobile devices match your search or filters.') }}
+                    </flux:callout.text>
+                </flux:callout>
+            @else
+                <flux:table>
                 <flux:table.columns>
                     <flux:table.column>{{ __('Asset') }}</flux:table.column>
+                    <flux:table.column>{{ __('Description') }}</flux:table.column>
+                    <flux:table.column>{{ __('FY Replacement') }}</flux:table.column>
                     <flux:table.column>{{ __('Assigned to') }}</flux:table.column>
                     <flux:table.column>{{ __('Carrier') }}</flux:table.column>
                     <flux:table.column>{{ __('Current cost') }}</flux:table.column>
@@ -422,7 +579,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
 
                         @if ($row['type'] === 'header' && $row['depth'] === 0)
                             <flux:table.row>
-                                <flux:table.cell colspan="9"
+                                <flux:table.cell colspan="11"
                                     class="border-t border-zinc-200 bg-zinc-100 py-1 dark:border-zinc-700 dark:bg-zinc-800">
                                     <button type="button" wire:click="toggleDivision('{{ $row['division_key'] }}')"
                                         class="flex w-full cursor-pointer items-center gap-2 text-left">
@@ -440,7 +597,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                             </flux:table.row>
                         @elseif ($row['type'] === 'header')
                             <flux:table.row>
-                                <flux:table.cell colspan="9"
+                                <flux:table.cell colspan="11"
                                     class="bg-zinc-50 pl-8 text-sm font-medium text-zinc-500 dark:bg-zinc-900/40 dark:text-zinc-400">
                                     {{ $row['label'] }}
                                 </flux:table.cell>
@@ -451,6 +608,16 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                                 <flux:table.cell>
                                     <div class="font-medium">{{ $asset->asset_tag ?? $asset->tdx_asset_id }}</div>
                                     <flux:text size="sm">{{ $asset->model?->name }}</flux:text>
+                                </flux:table.cell>
+                                <flux:table.cell>
+                                    <flux:text size="sm">{{ $asset->description ?? '—' }}</flux:text>
+                                </flux:table.cell>
+                                <flux:table.cell>
+                                    @if ($asset->fy_replacement !== null && $asset->fy_replacement < $this->openCycle->fiscal_year)
+                                        <flux:badge size="sm" color="amber">FY{{ $asset->fy_replacement }}</flux:badge>
+                                    @else
+                                        <flux:text size="sm">FY{{ $asset->fy_replacement }}</flux:text>
+                                    @endif
                                 </flux:table.cell>
                                 <flux:table.cell>
                                     <flux:text size="sm">{{ $asset->assigned_user_upn ?? '—' }}</flux:text>
@@ -499,7 +666,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                             </flux:table.row>
                         @elseif ($row['type'] === 'subtotal')
                             <flux:table.row>
-                                <flux:table.cell colspan="3" class="text-right font-medium"
+                                <flux:table.cell colspan="5" class="text-right font-medium"
                                     :style="'padding-left: '.($row['depth'] * 1.5).
                                     'rem'">
                                     {{ $row['label'] }} {{ __('subtotal') }}
@@ -518,7 +685,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                             </flux:table.row>
                         @elseif ($row['type'] === 'grand_total')
                             <flux:table.row>
-                                <flux:table.cell colspan="3" class="text-right font-semibold">
+                                <flux:table.cell colspan="5" class="text-right font-semibold">
                                     {{ $row['label'] }}
                                     @if ($row['pending'] > 0)
                                         <flux:text size="sm" class="inline">
@@ -536,7 +703,8 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                         @endif
                     @endforeach
                 </flux:table.rows>
-            </flux:table>
+                </flux:table>
+            @endif
 
             <flux:modal name="edit-replacement" class="max-w-lg" @close="stopEditing">
                 @if ($asset = $this->editingAsset)
