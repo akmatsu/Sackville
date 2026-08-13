@@ -13,7 +13,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('responsibilities', function (Blueprint $table): void {
-            $table->enum('scope_type', ResponsibilityScopeType::cases())->change();
+            $table->enum('scope_type', array_column(ResponsibilityScopeType::cases(), 'value'))->change();
         });
     }
 

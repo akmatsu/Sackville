@@ -13,7 +13,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sync_runs', function (Blueprint $table): void {
-            $table->enum('status', SyncRunStatus::cases())->change();
+            $table->enum('status', array_column(SyncRunStatus::cases(), 'value'))->change();
         });
     }
 

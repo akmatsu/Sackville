@@ -79,10 +79,14 @@ class Responsibility extends Model
                 && $this->responsible_division_id === $asset->responsible_division_id,
             ResponsibilityScopeType::Location => $this->responsible_location_id !== null
                 && $this->responsible_location_id === $asset->responsible_location_id,
-            ResponsibilityScopeType::Department => $asset->assigned_department_code === $this->scope_value,
-            ResponsibilityScopeType::Fund => $asset->glCode?->fund_code === $this->scope_value,
-            ResponsibilityScopeType::Object => $asset->glCode?->object_code === $this->scope_value,
-            ResponsibilityScopeType::SpecificGl => $asset->glCode?->code_string === $this->scope_value,
+            ResponsibilityScopeType::Department => filled($this->scope_value)
+                && $asset->assigned_department_code === $this->scope_value,
+            ResponsibilityScopeType::Fund => filled($this->scope_value)
+                && $asset->glCode?->fund_code === $this->scope_value,
+            ResponsibilityScopeType::Object => filled($this->scope_value)
+                && $asset->glCode?->object_code === $this->scope_value,
+            ResponsibilityScopeType::SpecificGl => filled($this->scope_value)
+                && $asset->glCode?->code_string === $this->scope_value,
         };
     }
 }

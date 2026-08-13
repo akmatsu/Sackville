@@ -153,22 +153,18 @@ class TdxAsset extends Model
                     ResponsibilityScopeType::Location => $responsibility->responsible_location_id !== null
                         ? $query->where('responsible_location_id', $responsibility->responsible_location_id)
                         : $query->whereRaw('1 = 0'),
-                    ResponsibilityScopeType::Department => $query->where(
-                        'assigned_department_code',
-                        $responsibility->scope_value
-                    ),
-                    ResponsibilityScopeType::Fund => $query->whereHas(
-                        'glCode',
-                        fn (Builder $query) => $query->where('fund_code', $responsibility->scope_value)
-                    ),
-                    ResponsibilityScopeType::Object => $query->whereHas(
-                        'glCode',
-                        fn (Builder $query) => $query->where('object_code', $responsibility->scope_value)
-                    ),
-                    ResponsibilityScopeType::SpecificGl => $query->whereHas(
-                        'glCode',
-                        fn (Builder $query) => $query->where('code_string', $responsibility->scope_value)
-                    ),
+                    ResponsibilityScopeType::Department => filled($responsibility->scope_value)
+                        ? $query->where('assigned_department_code', $responsibility->scope_value)
+                        : $query->whereRaw('1 = 0'),
+                    ResponsibilityScopeType::Fund => filled($responsibility->scope_value)
+                        ? $query->whereHas('glCode', fn (Builder $query) => $query->where('fund_code', $responsibility->scope_value))
+                        : $query->whereRaw('1 = 0'),
+                    ResponsibilityScopeType::Object => filled($responsibility->scope_value)
+                        ? $query->whereHas('glCode', fn (Builder $query) => $query->where('object_code', $responsibility->scope_value))
+                        : $query->whereRaw('1 = 0'),
+                    ResponsibilityScopeType::SpecificGl => filled($responsibility->scope_value)
+                        ? $query->whereHas('glCode', fn (Builder $query) => $query->where('code_string', $responsibility->scope_value))
+                        : $query->whereRaw('1 = 0'),
                 });
             }
         });
