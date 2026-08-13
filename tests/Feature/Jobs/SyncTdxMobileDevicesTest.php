@@ -64,9 +64,9 @@ function fakeTdxMobileDeviceRow(array $overrides = []): array
         'LocationName' => '',
         'LocationRoomName' => '',
         'StatusName' => 'Production',
-        'OwningCustomerName' => 'George Hays',
+        'OwningCustomerName' => 'Test User',
         2111 => 'FY25',
-        2114 => 'George Hays',
+        2114 => 'Test User',
         'ParentSerial' => '9073550563',
         2110 => 'Assembly - Administration -  100.115.122',
         2389 => 'Active',
@@ -177,10 +177,10 @@ it('creates a tdx_mobile_plan from a plan row, coded to 421.100, without touchin
         'po_number' => '27-0012 LINE A AW Phone/iPad',
         'plan_status' => 'Active',
         'plan_description' => 'FirstNet Mobile Unlimited Enhanced for iPhone w/VVM, Tethering and Mobile Hotspot',
-        'description' => 'George Hays',
+        'description' => 'Test User',
         'asset_tag' => '9073550563',
         'serial' => '9073550563',
-        'assigned_user_upn' => 'George Hays',
+        'assigned_user_upn' => 'Test User',
     ]);
 
     $plan = TdxMobilePlan::where('tdx_asset_id', '3209')->firstOrFail();
