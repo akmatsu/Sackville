@@ -82,7 +82,7 @@ class TdxAssetInfolist
                     ->formatStateUsing(function (mixed $state): string {
                         $decoded = is_string($state) ? json_decode($state, true) : $state;
 
-                        return $decoded ? json_encode($decoded, JSON_PRETTY_PRINT) : '';
+                        return $decoded ? (json_encode($decoded, JSON_PRETTY_PRINT) ?: '') : '';
                     })
                     ->columnSpanFull(),
             ]);

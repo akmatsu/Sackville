@@ -51,6 +51,9 @@ class TdxAsset extends Model
         'raw_payload' => 'json',
     ];
 
+    /**
+     * @return BelongsTo<HardwareModel, $this>
+     */
     public function model(): BelongsTo
     {
         return $this->belongsTo(HardwareModel::class, 'hardware_model_id');
@@ -64,27 +67,41 @@ class TdxAsset extends Model
      * deleted or resynced away and `plan_serial` is left dangling, and the
      * match is only unambiguous because `serial` is expected (not enforced)
      * to be unique on tdx_mobile_plans.
+     *
+     * @return BelongsTo<TdxMobilePlan, $this>
      */
     public function plan(): BelongsTo
     {
         return $this->belongsTo(TdxMobilePlan::class, 'plan_serial', 'serial');
     }
 
+    /**
+     * @return BelongsTo<ResponsibleDivision, $this>
+     */
     public function responsibleDivision(): BelongsTo
     {
         return $this->belongsTo(ResponsibleDivision::class);
     }
 
+    /**
+     * @return BelongsTo<ResponsibleLocation, $this>
+     */
     public function responsibleLocation(): BelongsTo
     {
         return $this->belongsTo(ResponsibleLocation::class);
     }
 
+    /**
+     * @return BelongsTo<GlCode, $this>
+     */
     public function glCode(): BelongsTo
     {
         return $this->belongsTo(GlCode::class);
     }
 
+    /**
+     * @return HasMany<HardwareReplacementSelection, $this>
+     */
     public function replacementSelections(): HasMany
     {
         return $this->hasMany(HardwareReplacementSelection::class);
@@ -95,6 +112,9 @@ class TdxAsset extends Model
      * given hardware category whose fy_replacement has arrived or passed, that
      * haven't already had a real replacement model picked in an earlier cycle
      * (an opt-out doesn't count, since deferring isn't the same as replaced).
+     *
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
     public function scopeEligibleForReplacement(Builder $query, string $categoryName, BudgetCycle $cycle): Builder
     {
@@ -112,6 +132,9 @@ class TdxAsset extends Model
      *
      * Kept in sync with {@see Responsibility::matchesAsset()}, which applies the
      * same rules in PHP for a single already-loaded asset.
+     *
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {

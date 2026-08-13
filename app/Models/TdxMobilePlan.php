@@ -40,16 +40,25 @@ class TdxMobilePlan extends Model
         'raw_payload' => 'json',
     ];
 
+    /**
+     * @return BelongsTo<ResponsibleDivision, $this>
+     */
     public function responsibleDivision(): BelongsTo
     {
         return $this->belongsTo(ResponsibleDivision::class);
     }
 
+    /**
+     * @return BelongsTo<ResponsibleLocation, $this>
+     */
     public function responsibleLocation(): BelongsTo
     {
         return $this->belongsTo(ResponsibleLocation::class);
     }
 
+    /**
+     * @return BelongsTo<GlCode, $this>
+     */
     public function glCode(): BelongsTo
     {
         return $this->belongsTo(GlCode::class);
@@ -60,6 +69,8 @@ class TdxMobilePlan extends Model
      * against this plan's serial — see TdxAsset::plan() for the inverse and
      * its caveats (no DB-level referential integrity, relies on `serial`
      * being effectively unique).
+     *
+     * @return HasMany<TdxAsset, $this>
      */
     public function devices(): HasMany
     {

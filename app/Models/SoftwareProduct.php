@@ -30,11 +30,17 @@ class SoftwareProduct extends Model
         'active' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<Vendor, $this>
+     */
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Vendor::class);
     }
 
+    /**
+     * @return HasMany<SoftwareLicense, $this>
+     */
     public function licenses(): HasMany
     {
         return $this->hasMany(SoftwareLicense::class);

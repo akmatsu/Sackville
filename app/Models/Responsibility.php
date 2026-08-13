@@ -42,16 +42,25 @@ class Responsibility extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return BelongsTo<ResponsibleDivision, $this>
+     */
     public function responsibleDivision(): BelongsTo
     {
         return $this->belongsTo(ResponsibleDivision::class);
     }
 
+    /**
+     * @return BelongsTo<ResponsibleLocation, $this>
+     */
     public function responsibleLocation(): BelongsTo
     {
         return $this->belongsTo(ResponsibleLocation::class);

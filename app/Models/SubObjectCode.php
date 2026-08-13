@@ -33,11 +33,17 @@ class SubObjectCode extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<ObjectCode, $this>
+     */
     public function objectCode(): BelongsTo
     {
         return $this->belongsTo(ObjectCode::class, 'object_code', 'code');
     }
 
+    /**
+     * @return HasMany<GlCode, $this>
+     */
     public function glCodes(): HasMany
     {
         return $this->hasMany(GlCode::class);

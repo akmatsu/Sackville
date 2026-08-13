@@ -41,36 +41,57 @@ class BudgetLineItem extends Model
         'status' => BudgetLineItemStatus::class,
     ];
 
+    /**
+     * @return BelongsTo<BudgetCycle, $this>
+     */
     public function cycle(): BelongsTo
     {
         return $this->belongsTo(BudgetCycle::class, 'budget_cycle_id');
     }
 
+    /**
+     * @return BelongsTo<TdxAsset, $this>
+     */
     public function tdxAsset(): BelongsTo
     {
         return $this->belongsTo(TdxAsset::class);
     }
 
+    /**
+     * @return BelongsTo<HardwareModel, $this>
+     */
     public function hardwareModel(): BelongsTo
     {
         return $this->belongsTo(HardwareModel::class);
     }
 
+    /**
+     * @return BelongsTo<SoftwareProduct, $this>
+     */
     public function softwareProduct(): BelongsTo
     {
         return $this->belongsTo(SoftwareProduct::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_id');
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function lastModifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'last_modified_by_id');
     }
 
+    /**
+     * @return HasMany<LineItemGlAllocation, $this>
+     */
     public function glAllocations(): HasMany
     {
         return $this->hasMany(LineItemGlAllocation::class);

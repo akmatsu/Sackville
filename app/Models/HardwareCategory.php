@@ -20,11 +20,17 @@ class HardwareCategory extends Model
         'name',
     ];
 
+    /**
+     * @return HasMany<HardwareModel, $this>
+     */
     public function hardwareModels(): HasMany
     {
         return $this->hasMany(HardwareModel::class);
     }
 
+    /**
+     * @return BelongsToMany<HardwareReplacementGroup, $this>
+     */
     public function hardwareReplacementGroups(): BelongsToMany
     {
         return $this->belongsToMany(

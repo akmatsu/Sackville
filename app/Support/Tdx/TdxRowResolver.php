@@ -31,7 +31,10 @@ final class TdxRowResolver
      * auto-created department rows a real name (and mark them active)
      * instead of a placeholder, when the GL segment matches one of these.
      *
-     * @var array<string, string>
+     * Keys are written as numeric strings but PHP coerces them to int keys
+     * at array-literal time, hence the int key type below.
+     *
+     * @var array<int, string>
      */
     private const KNOWN_DEPARTMENT_NAMES = [
         '100' => 'Administration',
@@ -63,8 +66,14 @@ final class TdxRowResolver
             return null;
         }
 
+        $segments = preg_split('/\s*-\s*/', trim($value));
+
+        if ($segments === false) {
+            return null;
+        }
+
         $parts = array_values(array_filter(
-            array_map('trim', preg_split('/\s*-\s*/', trim($value))),
+            array_map('trim', $segments),
             static fn (string $part): bool => $part !== '',
         ));
 

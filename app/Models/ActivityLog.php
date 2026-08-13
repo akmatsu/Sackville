@@ -35,6 +35,9 @@ class ActivityLog extends Model
         'action' => ActivityLogAction::class,
     ];
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actor_id');

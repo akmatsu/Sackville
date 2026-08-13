@@ -26,16 +26,25 @@ class ResponsibleLocation extends Model
         'active' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<ResponsibleDivision, $this>
+     */
     public function division(): BelongsTo
     {
         return $this->belongsTo(ResponsibleDivision::class, 'responsible_division_id');
     }
 
+    /**
+     * @return HasMany<TdxAsset, $this>
+     */
     public function tdxAssets(): HasMany
     {
         return $this->hasMany(TdxAsset::class);
     }
 
+    /**
+     * @return HasMany<Responsibility, $this>
+     */
     public function responsibilities(): HasMany
     {
         return $this->hasMany(Responsibility::class);

@@ -31,21 +31,33 @@ class HardwareModel extends Model
         'active' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<Vendor, $this>
+     */
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Vendor::class);
     }
 
+    /**
+     * @return BelongsTo<HardwareCategory, $this>
+     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(HardwareCategory::class, 'hardware_category_id');
     }
 
+    /**
+     * @return HasMany<HardwareModelCost, $this>
+     */
     public function costs(): HasMany
     {
         return $this->hasMany(HardwareModelCost::class);
     }
 
+    /**
+     * @return BelongsToMany<HardwareReplacementGroup, $this>
+     */
     public function hardwareReplacementGroups(): BelongsToMany
     {
         return $this->belongsToMany(

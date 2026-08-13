@@ -33,11 +33,17 @@ class Division extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Department, $this>
+     */
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'department_code', 'code');
     }
 
+    /**
+     * @return HasMany<GlCode, $this>
+     */
     public function glCodes(): HasMany
     {
         return $this->hasMany(GlCode::class);

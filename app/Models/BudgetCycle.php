@@ -30,16 +30,26 @@ class BudgetCycle extends Model
         'status' => BudgetCycleStatus::class,
     ];
 
+    /**
+     * @return HasMany<BudgetLineItem, $this>
+     */
     public function lineItems(): HasMany
     {
         return $this->hasMany(BudgetLineItem::class);
     }
 
+    /**
+     * @return HasMany<HardwareReplacementSelection, $this>
+     */
     public function replacementSelections(): HasMany
     {
         return $this->hasMany(HardwareReplacementSelection::class);
     }
 
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
     public function scopeOpen(Builder $query): Builder
     {
         return $query->where('status', BudgetCycleStatus::Open);

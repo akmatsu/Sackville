@@ -25,6 +25,9 @@ class HardwareReplacementGroup extends Model
         'active' => 'boolean',
     ];
 
+    /**
+     * @return BelongsToMany<HardwareCategory, $this>
+     */
     public function replaceableCategories(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -35,6 +38,9 @@ class HardwareReplacementGroup extends Model
         );
     }
 
+    /**
+     * @return BelongsToMany<HardwareModel, $this>
+     */
     public function eligibleModels(): BelongsToMany
     {
         return $this->belongsToMany(

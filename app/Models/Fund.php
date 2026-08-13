@@ -40,6 +40,9 @@ class Fund extends Model
         ];
     }
 
+    /**
+     * @return HasMany<GlCode, $this>
+     */
     public function glCodes(): HasMany
     {
         return $this->hasMany(GlCode::class, 'fund_code', 'code');

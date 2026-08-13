@@ -26,11 +26,17 @@ class Vendor extends Model
         'active' => 'boolean',
     ];
 
+    /**
+     * @return HasMany<SoftwareProduct, $this>
+     */
     public function softwareProducts(): HasMany
     {
         return $this->hasMany(SoftwareProduct::class);
     }
 
+    /**
+     * @return HasMany<HardwareModel, $this>
+     */
     public function hardwareModels(): HasMany
     {
         return $this->hasMany(HardwareModel::class);

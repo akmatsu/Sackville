@@ -37,11 +37,17 @@ class Department extends Model
         ];
     }
 
+    /**
+     * @return HasMany<Division, $this>
+     */
     public function divisions(): HasMany
     {
         return $this->hasMany(Division::class, 'department_code', 'code');
     }
 
+    /**
+     * @return HasMany<GlCode, $this>
+     */
     public function glCodes(): HasMany
     {
         return $this->hasMany(GlCode::class, 'department_code', 'code');

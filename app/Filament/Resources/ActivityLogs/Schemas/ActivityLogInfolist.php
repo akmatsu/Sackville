@@ -28,7 +28,7 @@ class ActivityLogInfolist
                     ->formatStateUsing(function (mixed $state): string {
                         $decoded = is_string($state) ? json_decode($state, true) : $state;
 
-                        return $decoded ? json_encode($decoded, JSON_PRETTY_PRINT) : 'None';
+                        return $decoded ? (json_encode($decoded, JSON_PRETTY_PRINT) ?: 'None') : 'None';
                     })
                     ->columnSpanFull(),
             ]);

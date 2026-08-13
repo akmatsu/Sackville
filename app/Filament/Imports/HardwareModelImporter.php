@@ -63,7 +63,7 @@ class HardwareModelImporter extends Importer
         $vendorName = $this->data['vendor'] ?? null;
 
         if (filled($vendorName)) {
-            $model->vendor_id = Vendor::query()->firstOrCreate(['name' => $vendorName])->id;
+            $model->vendor()->associate(Vendor::query()->firstOrCreate(['name' => $vendorName]));
         } elseif (! $model->exists) {
             throw new RowImportFailedException('The "vendor" column is required when creating a new hardware model.');
         }
@@ -79,8 +79,9 @@ class HardwareModelImporter extends Importer
      */
     protected function resolveCategory(): HardwareCategory
     {
-        $group = HardwareReplacementGroup::query()->find($this->options['hardware_replacement_group_id'] ?? null);
-        $replaceableCategories = $group?->replaceableCategories ?? collect();
+        $groupId = $this->options['hardware_replacement_group_id'] ?? null;
+        $group = $groupId !== null ? HardwareReplacementGroup::query()->where('id', (int) $groupId)->first() : null;
+        $replaceableCategories = $group instanceof HardwareReplacementGroup ? $group->replaceableCategories : collect();
 
         if ($replaceableCategories->count() === 1) {
             return $replaceableCategories->first();
@@ -95,10 +96,16 @@ class HardwareModelImporter extends Importer
 
     protected function afterSave(): void
     {
+        $model = $this->record;
+
+        if (! $model instanceof HardwareModel) {
+            return;
+        }
+
         $groupId = $this->options['hardware_replacement_group_id'] ?? null;
 
         if ($groupId !== null) {
-            $this->record->hardwareReplacementGroups()->syncWithoutDetaching([$groupId]);
+            $model->hardwareReplacementGroups()->syncWithoutDetaching([(int) $groupId]);
         }
 
         $fiscalYear = $this->data['fiscal_year'] ?? BudgetCycle::query()->open()->latest('fiscal_year')->value('fiscal_year');
@@ -109,7 +116,7 @@ class HardwareModelImporter extends Importer
 
         HardwareModelCost::query()->updateOrCreate(
             [
-                'hardware_model_id' => $this->record->id,
+                'hardware_model_id' => $model->id,
                 'fiscal_year' => $fiscalYear,
                 'with_docking' => false,
             ],

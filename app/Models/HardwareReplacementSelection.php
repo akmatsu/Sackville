@@ -30,21 +30,33 @@ class HardwareReplacementSelection extends Model
         'with_docking' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<BudgetCycle, $this>
+     */
     public function cycle(): BelongsTo
     {
         return $this->belongsTo(BudgetCycle::class, 'budget_cycle_id');
     }
 
+    /**
+     * @return BelongsTo<TdxAsset, $this>
+     */
     public function tdxAsset(): BelongsTo
     {
         return $this->belongsTo(TdxAsset::class);
     }
 
+    /**
+     * @return BelongsTo<HardwareModel, $this>
+     */
     public function hardwareModel(): BelongsTo
     {
         return $this->belongsTo(HardwareModel::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function selectedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'selected_by_id');
