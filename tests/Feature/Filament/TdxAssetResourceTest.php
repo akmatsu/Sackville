@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TdxAssetSource;
 use App\Filament\Resources\TdxAssets\Pages\ListTdxAssets;
 use App\Filament\Resources\TdxAssets\Pages\ViewTdxAsset;
 use App\Models\Division;
@@ -7,6 +8,7 @@ use App\Models\GlCode;
 use App\Models\ResponsibleDivision;
 use App\Models\ResponsibleLocation;
 use App\Models\TdxAsset;
+use App\Models\TdxMobilePlan;
 use App\Models\User;
 
 use function Pest\Livewire\livewire;
@@ -75,4 +77,28 @@ it('shows the responsible division, location, and GL code in the table and view 
 it('does not register create or edit routes for tdx assets', function () {
     expect(app('router')->getRoutes()->hasNamedRoute('filament.admin.resources.tdx-assets.create'))->toBeFalse();
     expect(app('router')->getRoutes()->hasNamedRoute('filament.admin.resources.tdx-assets.edit'))->toBeFalse();
+});
+
+it('shows the source and type columns and can filter the table by source', function () {
+    $workstation = TdxAsset::factory()->create(['source' => TdxAssetSource::Workstation, 'product_type' => null]);
+    $device = TdxAsset::factory()->create(['source' => TdxAssetSource::Mobile, 'product_type' => 'Phone']);
+
+    livewire(ListTdxAssets::class)
+        ->assertTableColumnStateSet('source', TdxAssetSource::Workstation, $workstation)
+        ->assertTableColumnStateSet('product_type', 'Phone', $device)
+        ->filterTable('source', TdxAssetSource::Mobile->value)
+        ->assertCanSeeTableRecords([$device])
+        ->assertCanNotSeeTableRecords([$workstation]);
+});
+
+it('shows a mobile device\'s linked plan on its view page', function () {
+    $plan = TdxMobilePlan::factory()->create(['serial' => '9073550563', 'carrier' => 'AT&T']);
+    $device = TdxAsset::factory()->create(['source' => TdxAssetSource::Mobile, 'plan_serial' => '9073550563']);
+
+    livewire(ViewTdxAsset::class, ['record' => $device->getKey()])
+        ->assertOk()
+        ->assertSchemaStateSet([
+            'plan.carrier' => 'AT&T',
+            'plan.serial' => $plan->serial,
+        ]);
 });

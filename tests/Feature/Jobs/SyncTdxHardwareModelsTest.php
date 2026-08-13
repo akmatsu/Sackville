@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\SyncRunStatus;
+use App\Enums\TdxAssetSource;
 use App\Jobs\SyncTdxHardwareModels;
 use App\Models\Department;
 use App\Models\Division;
@@ -85,6 +86,7 @@ it('creates a tdx asset with its vendor, category, and hardware model from a ful
     $model = HardwareModel::where('vendor_id', $vendor->id)->firstOrFail();
     assertDatabaseHas(TdxAsset::class, [
         'tdx_asset_id' => '352',
+        'source' => TdxAssetSource::Workstation->value,
         'status' => 'Production',
         'description' => 'Nikki Hyson',
         'asset_tag' => '3GQHZ44',
@@ -131,6 +133,16 @@ it('marks an asset absent from the current TDX response as surplus without delet
     assertDatabaseCount(TdxAsset::class, 2);
     assertDatabaseHas(TdxAsset::class, ['tdx_asset_id' => '1', 'status' => 'Production']);
     assertDatabaseHas(TdxAsset::class, ['tdx_asset_id' => '2', 'status' => 'Surplus']);
+});
+
+it('does not mark a mobile-sourced tdx asset as surplus during a workstation sync', function () {
+    $mobileAsset = TdxAsset::factory()->create(['source' => TdxAssetSource::Mobile, 'status' => 'Production']);
+
+    fakeTdxReports([[fakeTdxWorkstationRow(['AssetID' => 1])]]);
+
+    (new SyncTdxHardwareModels)->handle();
+
+    expect($mobileAsset->refresh()->status)->toBe('Production');
 });
 
 it('does not mark existing assets as surplus when TDX returns an empty response', function () {
@@ -344,4 +356,21 @@ it('records a failed sync run when TDX authentication fails', function () {
 
 it('has a stable unique id so duplicate runs are not queued concurrently', function () {
     expect((new SyncTdxHardwareModels)->uniqueId())->toBe('tdx-hardware-models-sync');
+});
+
+it('updates a pre-created running sync run instead of creating a new one', function () {
+    $syncRun = SyncRun::factory()->running()->create(['integration' => 'tdx']);
+
+    fakeTdxReports([[fakeTdxWorkstationRow(['AssetID' => 1])]]);
+
+    (new SyncTdxHardwareModels($syncRun->id))->handle();
+
+    assertDatabaseCount(SyncRun::class, 1);
+    assertDatabaseHas(SyncRun::class, [
+        'id' => $syncRun->id,
+        'integration' => 'tdx',
+        'status' => SyncRunStatus::Success->value,
+        'records_synced' => 1,
+        'records_failed' => 0,
+    ]);
 });

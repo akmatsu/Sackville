@@ -12,6 +12,15 @@ it('seeds a default daily tdx schedule via migration', function () {
     expect($schedule->timezone)->toBe('America/Anchorage');
 });
 
+it('seeds a default daily tdx-mobile schedule via migration', function () {
+    $schedule = SyncSchedule::query()->firstWhere('integration', 'tdx-mobile');
+
+    expect($schedule)->not->toBeNull();
+    expect($schedule->frequency)->toBe(SyncFrequency::Daily);
+    expect($schedule->time_of_day)->toBe('23:30');
+    expect($schedule->timezone)->toBe('America/Anchorage');
+});
+
 it('builds a cron expression for a daily schedule', function () {
     $schedule = SyncSchedule::factory()->make([
         'frequency' => SyncFrequency::Daily,
@@ -36,4 +45,14 @@ it('falls back to config defaults for an integration with no configured schedule
     expect($schedule->exists)->toBeFalse();
     expect($schedule->frequency)->toBe(SyncFrequency::Daily);
     expect($schedule->time_of_day)->toBe(config('tdx.hardware_sync.time_of_day'));
+});
+
+it('falls back to the mobile_sync config defaults when no tdx-mobile schedule row exists', function () {
+    SyncSchedule::query()->where('integration', 'tdx-mobile')->delete();
+
+    $schedule = SyncSchedule::forIntegration('tdx-mobile');
+
+    expect($schedule->exists)->toBeFalse();
+    expect($schedule->frequency)->toBe(SyncFrequency::Daily);
+    expect($schedule->time_of_day)->toBe(config('tdx.mobile_sync.time_of_day'));
 });

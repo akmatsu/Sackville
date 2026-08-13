@@ -7,6 +7,7 @@ use Filament\Support\Contracts\HasLabel;
 
 enum SyncRunStatus: string implements HasColor, HasLabel
 {
+    case Running = 'running';
     case Success = 'success';
     case Partial = 'partial';
     case Failed = 'failed';
@@ -19,6 +20,7 @@ enum SyncRunStatus: string implements HasColor, HasLabel
     public function getColor(): string
     {
         return match ($this) {
+            self::Running => 'info',
             self::Success => 'success',
             self::Partial => 'warning',
             self::Failed => 'danger',

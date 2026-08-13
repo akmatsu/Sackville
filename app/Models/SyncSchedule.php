@@ -39,13 +39,27 @@ class SyncSchedule extends Model
             ? static::query()->firstWhere('integration', $integration)
             : null;
 
+        $configSection = static::configSectionFor($integration);
+
         return $schedule ?? new self([
             'integration' => $integration,
-            'frequency' => config('tdx.hardware_sync.frequency'),
-            'time_of_day' => config('tdx.hardware_sync.time_of_day'),
-            'interval_hours' => config('tdx.hardware_sync.interval_hours'),
-            'timezone' => config('tdx.hardware_sync.timezone'),
+            'frequency' => config("tdx.{$configSection}.frequency"),
+            'time_of_day' => config("tdx.{$configSection}.time_of_day"),
+            'interval_hours' => config("tdx.{$configSection}.interval_hours"),
+            'timezone' => config("tdx.{$configSection}.timezone"),
         ]);
+    }
+
+    /**
+     * Maps an integration key to its config/tdx.php section, for the
+     * pre-migration fallback above.
+     */
+    protected static function configSectionFor(string $integration): string
+    {
+        return match ($integration) {
+            'tdx-mobile' => 'mobile_sync',
+            default => 'hardware_sync',
+        };
     }
 
     public function toCronExpression(): string

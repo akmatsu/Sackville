@@ -24,6 +24,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mobile Device Sync Schedule
+    |--------------------------------------------------------------------------
+    |
+    | Same as above, but for the mobile device sync job. Independent cadence
+    | from the hardware model sync so each can be tuned separately.
+    |
+    */
+
+    'mobile_sync' => [
+        'frequency' => env('TDX_MOBILE_SYNC_FREQUENCY', 'daily'),
+        'time_of_day' => env('TDX_MOBILE_SYNC_TIME', '23:30'),
+        'interval_hours' => env('TDX_MOBILE_SYNC_INTERVAL_HOURS'),
+        'timezone' => env('TDX_MOBILE_SYNC_TIMEZONE', 'America/Anchorage'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | API Connection
     |--------------------------------------------------------------------------
     |

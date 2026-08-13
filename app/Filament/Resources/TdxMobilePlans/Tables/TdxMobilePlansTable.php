@@ -1,35 +1,40 @@
 <?php
 
-namespace App\Filament\Resources\TdxAssets\Tables;
+namespace App\Filament\Resources\TdxMobilePlans\Tables;
 
-use App\Enums\TdxAssetSource;
-use App\Models\TdxAsset;
+use App\Models\TdxMobilePlan;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
-class TdxAssetsTable
+class TdxMobilePlansTable
 {
     public static function configure(Table $table): Table
     {
         return $table
             ->columns([
-                TextColumn::make('source')
-                    ->badge()
-                    ->sortable(),
                 TextColumn::make('asset_tag')
                     ->label('Asset tag')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('serial')
                     ->searchable(),
-                TextColumn::make('product_type')
-                    ->label('Type')
-                    ->placeholder('—')
+                TextColumn::make('carrier')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('model.name')
-                    ->label('Model')
+                TextColumn::make('po_number')
+                    ->label('PO number')
+                    ->searchable(),
+                TextColumn::make('plan_status')
+                    ->label('Plan status')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'Active' => 'success',
+                        null => 'gray',
+                        default => 'warning',
+                    })
+                    ->searchable()
                     ->sortable(),
                 TextColumn::make('status')
                     ->badge()
@@ -56,13 +61,6 @@ class TdxAssetsTable
                     ->label('GL code')
                     ->placeholder('—')
                     ->sortable(),
-                TextColumn::make('fy_replacement')
-                    ->label('FY replacement')
-                    ->sortable(),
-                TextColumn::make('warranty_ends_at')
-                    ->label('Warranty ends')
-                    ->date()
-                    ->sortable(),
                 TextColumn::make('last_synced_at')
                     ->label('Last synced')
                     ->dateTime()
@@ -70,26 +68,24 @@ class TdxAssetsTable
             ])
             ->defaultSort('last_synced_at', 'desc')
             ->filters([
-                SelectFilter::make('source')
-                    ->options(TdxAssetSource::class),
                 SelectFilter::make('status')
-                    ->options(fn () => TdxAsset::query()
+                    ->options(fn () => TdxMobilePlan::query()
                         ->whereNotNull('status')
                         ->distinct()
                         ->orderBy('status')
                         ->pluck('status', 'status')
                         ->all()),
+                SelectFilter::make('plan_status')
+                    ->label('Plan status')
+                    ->options(fn () => TdxMobilePlan::query()
+                        ->whereNotNull('plan_status')
+                        ->distinct()
+                        ->orderBy('plan_status')
+                        ->pluck('plan_status', 'plan_status')
+                        ->all()),
                 SelectFilter::make('responsible_division_id')
                     ->label('Responsible division')
                     ->relationship('responsibleDivision', 'name'),
-                SelectFilter::make('fy_replacement')
-                    ->label('FY replacement')
-                    ->options(fn () => TdxAsset::query()
-                        ->whereNotNull('fy_replacement')
-                        ->distinct()
-                        ->orderBy('fy_replacement')
-                        ->pluck('fy_replacement', 'fy_replacement')
-                        ->all()),
             ])
             ->recordActions([
                 ViewAction::make(),

@@ -537,3 +537,5 @@ When in doubt, generate a smaller, more explicit solution and add a `// TODO` fo
 ## General instructions
 
 - **Very IMPORTANT: NEVER use emojis. Especially in file names or commit messages.**
+- Before creating a new component or function, search for one that already exists — check `app/Filament/` for Filament components, `app/Services/` for business logic, `app/Models/Concerns/` for shared model behavior, and `app/Helpers/` for utilities.
+- If the same logic is needed in a second place, extract it to the appropriate location above rather than duplicating it — don't force an abstraction on first use.

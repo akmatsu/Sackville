@@ -50,6 +50,33 @@ it('fetches workstations using the bearer token', function () {
     });
 });
 
+it('fetches mobile devices using the bearer token', function () {
+    Http::fake([
+        'https://tdx.test/reports/363*' => Http::response([
+            'DisplayedColumns' => [
+                ['HeaderText' => 'ID', 'ColumnName' => 'AssetID'],
+            ],
+            'DataRows' => [
+                ['AssetID' => 1, 'Name' => 'IT98760'],
+                ['AssetID' => 2, 'Name' => 'IT98761'],
+            ],
+            'ID' => 363,
+        ], 200),
+    ]);
+
+    $client = new TdxClient('https://tdx.test', 'a-user', 'a-password');
+
+    $mobileDevices = $client->getMobileDevices('fake-jwt-token');
+
+    expect($mobileDevices)->toHaveCount(2);
+
+    Http::assertSent(function (Request $request) {
+        return str_starts_with($request->url(), 'https://tdx.test/reports/363')
+            && $request['withData'] === 'true'
+            && $request->hasHeader('Authorization', 'Bearer fake-jwt-token');
+    });
+});
+
 it('throws when authentication fails', function () {
     Http::fake([
         'https://tdx.test/auth' => Http::response('Unauthorized', 401),

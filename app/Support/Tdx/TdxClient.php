@@ -59,4 +59,21 @@ final class TdxClient
 
         return $response->json('DataRows') ?? [];
     }
+
+    /**
+     * Fetch the raw mobile device rows from TDX report 363.
+     *
+     * Same shape as getWorkstations() — see that method's docblock for the
+     * DataRows/withData notes.
+     *
+     * @return array<int, mixed>
+     */
+    public function getMobileDevices(string $token): array
+    {
+        $response = Http::withToken($token)
+            ->get("{$this->baseUrl}/reports/363", ['withData' => 'true'])
+            ->throw();
+
+        return $response->json('DataRows') ?? [];
+    }
 }

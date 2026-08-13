@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ResponsibilityScopeType;
+use App\Enums\TdxAssetSource;
 use Database\Factories\TdxAssetFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,10 +21,13 @@ class TdxAsset extends Model
      */
     protected $fillable = [
         'tdx_asset_id',
+        'source',
         'status',
+        'product_type',
         'description',
         'asset_tag',
         'serial',
+        'plan_serial',
         'hardware_model_id',
         'has_docking_station',
         'assigned_user_upn',
@@ -39,6 +43,7 @@ class TdxAsset extends Model
     ];
 
     protected $casts = [
+        'source' => TdxAssetSource::class,
         'has_docking_station' => 'boolean',
         'acquired_at' => 'date',
         'warranty_ends_at' => 'date',
@@ -49,6 +54,20 @@ class TdxAsset extends Model
     public function model(): BelongsTo
     {
         return $this->belongsTo(HardwareModel::class, 'hardware_model_id');
+    }
+
+    /**
+     * The mobile plan this device is on, matched on TDX's ParentSerial
+     * against the plan's serial rather than a primary key — resolved at
+     * query time so it isn't sensitive to which row (plan or device) synced
+     * first within a run. No DB-level referential integrity: a plan can be
+     * deleted or resynced away and `plan_serial` is left dangling, and the
+     * match is only unambiguous because `serial` is expected (not enforced)
+     * to be unique on tdx_mobile_plans.
+     */
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(TdxMobilePlan::class, 'plan_serial', 'serial');
     }
 
     public function responsibleDivision(): BelongsTo

@@ -29,4 +29,19 @@ class SyncRunFactory extends Factory
             'errors' => null,
         ];
     }
+
+    /**
+     * A sync run that is currently in progress and has not finished yet.
+     */
+    public function running(): static
+    {
+        return $this->state(fn (): array => [
+            'started_at' => now(),
+            'finished_at' => null,
+            'records_synced' => 0,
+            'records_failed' => 0,
+            'status' => 'running',
+            'errors' => null,
+        ]);
+    }
 }
