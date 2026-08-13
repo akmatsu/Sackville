@@ -57,10 +57,10 @@ class HardwareReplacementGroupsSeeder extends Seeder
             ['active' => true]
         );
 
-        $workstationCategory = HardwareCategory::where('name', 'Workstation')->first();
-        $workstationModels = HardwareModel::whereIn('name', self::WORKSTATION_MODEL_NAMES)->pluck('id');
+        $workstationCategory = HardwareCategory::firstOrCreate(['name' => 'Workstation']);
+        $workstationModels = HardwareModel::whereIn('name', self::WORKSTATION_MODEL_NAMES)->pluck('id')->all();
 
-        $workstationGroup->replaceableCategories()->syncWithoutDetaching($workstationCategory->id);
+        $workstationGroup->replaceableCategories()->syncWithoutDetaching([$workstationCategory->id]);
         $workstationGroup->eligibleModels()->sync($workstationModels);
 
         // Create Mobile replacement group
@@ -69,10 +69,10 @@ class HardwareReplacementGroupsSeeder extends Seeder
             ['active' => true]
         );
 
-        $mobileCategory = HardwareCategory::where('name', 'Mobile')->first();
-        $mobileModels = HardwareModel::whereIn('name', self::MOBILE_MODEL_NAMES)->pluck('id');
+        $mobileCategory = HardwareCategory::firstOrCreate(['name' => 'Mobile']);
+        $mobileModels = HardwareModel::whereIn('name', self::MOBILE_MODEL_NAMES)->pluck('id')->all();
 
-        $mobileGroup->replaceableCategories()->syncWithoutDetaching($mobileCategory->id);
+        $mobileGroup->replaceableCategories()->syncWithoutDetaching([$mobileCategory->id]);
         $mobileGroup->eligibleModels()->sync($mobileModels);
     }
 }
