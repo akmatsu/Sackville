@@ -22,11 +22,17 @@ class LineItemGlAllocation extends Model
         'amount',
     ];
 
+    /**
+     * @return BelongsTo<BudgetLineItem, $this>
+     */
     public function lineItem(): BelongsTo
     {
         return $this->belongsTo(BudgetLineItem::class);
     }
 
+    /**
+     * @return BelongsTo<GlCode, $this>
+     */
     public function glCode(): BelongsTo
     {
         return $this->belongsTo(GlCode::class);

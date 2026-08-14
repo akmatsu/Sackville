@@ -27,6 +27,9 @@ class HardwareModelCost extends Model
         'with_docking' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<HardwareModel, $this>
+     */
     public function model(): BelongsTo
     {
         return $this->belongsTo(HardwareModel::class);

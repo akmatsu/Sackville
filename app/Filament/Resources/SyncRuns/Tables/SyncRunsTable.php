@@ -36,6 +36,7 @@ class SyncRunsTable
                     ->sortable(),
             ])
             ->defaultSort('started_at', 'desc')
+            ->poll('3s')
             ->filters([
                 SelectFilter::make('status')
                     ->options(SyncRunStatus::class),

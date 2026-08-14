@@ -61,21 +61,33 @@ class User extends Authenticatable implements PasskeyUser
             : $initials;
     }
 
+    /**
+     * @return HasMany<BudgetLineItem, $this>
+     */
     public function budgetLineItemsCreated(): HasMany
     {
         return $this->hasMany(BudgetLineItem::class, 'created_by_id');
     }
 
+    /**
+     * @return HasMany<BudgetLineItem, $this>
+     */
     public function budgetLineItemsModified(): HasMany
     {
         return $this->hasMany(BudgetLineItem::class, 'last_modified_by_id');
     }
 
+    /**
+     * @return HasMany<Responsibility, $this>
+     */
     public function responsibilities(): HasMany
     {
         return $this->hasMany(Responsibility::class);
     }
 
+    /**
+     * @return HasMany<ActivityLog, $this>
+     */
     public function activityLogs(): HasMany
     {
         return $this->hasMany(ActivityLog::class, 'actor_id');

@@ -11,6 +11,7 @@ enum ResponsibilityScopeType: string implements HasLabel
     case Division = 'division';
     case Object = 'object';
     case SpecificGl = 'specific_gl';
+    case Location = 'location';
 
     public function getLabel(): string
     {
@@ -20,6 +21,7 @@ enum ResponsibilityScopeType: string implements HasLabel
             self::Division => 'Division',
             self::Object => 'Object code',
             self::SpecificGl => 'Specific GL code',
+            self::Location => 'Location',
         };
     }
 }

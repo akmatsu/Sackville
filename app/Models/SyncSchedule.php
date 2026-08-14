@@ -31,21 +31,43 @@ class SyncSchedule extends Model
 
     /**
      * The configured schedule for an integration, falling back to config
-     * defaults if no row exists yet (e.g. before this table is migrated).
+     * defaults if no row exists yet (e.g. before this table is migrated,
+     * or before the database itself is reachable at all — this is loaded
+     * from routes/console.php, which runs on every artisan invocation,
+     * including ones like `package:discover` that fire during `composer
+     * install` before the database file has been created).
      */
     public static function forIntegration(string $integration): self
     {
-        $schedule = Schema::hasTable('sync_schedules')
-            ? static::query()->firstWhere('integration', $integration)
-            : null;
+        try {
+            $schedule = Schema::hasTable('sync_schedules')
+                ? static::query()->firstWhere('integration', $integration)
+                : null;
+        } catch (\Throwable) {
+            $schedule = null;
+        }
+
+        $configSection = static::configSectionFor($integration);
 
         return $schedule ?? new self([
             'integration' => $integration,
-            'frequency' => config('tdx.hardware_sync.frequency'),
-            'time_of_day' => config('tdx.hardware_sync.time_of_day'),
-            'interval_hours' => config('tdx.hardware_sync.interval_hours'),
-            'timezone' => config('tdx.hardware_sync.timezone'),
+            'frequency' => config("tdx.{$configSection}.frequency"),
+            'time_of_day' => config("tdx.{$configSection}.time_of_day"),
+            'interval_hours' => config("tdx.{$configSection}.interval_hours"),
+            'timezone' => config("tdx.{$configSection}.timezone"),
         ]);
+    }
+
+    /**
+     * Maps an integration key to its config/tdx.php section, for the
+     * pre-migration fallback above.
+     */
+    protected static function configSectionFor(string $integration): string
+    {
+        return match ($integration) {
+            'tdx-mobile' => 'mobile_sync',
+            default => 'hardware_sync',
+        };
     }
 
     public function toCronExpression(): string

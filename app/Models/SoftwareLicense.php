@@ -30,6 +30,9 @@ class SoftwareLicense extends Model
         'license_expiration' => 'date',
     ];
 
+    /**
+     * @return BelongsTo<SoftwareProduct, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(SoftwareProduct::class, 'software_product_id');

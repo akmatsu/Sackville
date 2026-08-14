@@ -533,3 +533,9 @@ MSB's FY runs July 1 – June 30. FY27 = July 2026 through June 2027. Always sto
 - Any suggestion to move actuals tracking into this app.
 
 When in doubt, generate a smaller, more explicit solution and add a `// TODO` for the human to review. This codebase values clarity and maintainability over cleverness.
+
+## General instructions
+
+- **Very IMPORTANT: NEVER use emojis. Especially in file names or commit messages.**
+- Before creating a new component or function, search for one that already exists — check `app/Filament/` for Filament components, `app/Services/` for business logic, `app/Models/Concerns/` for shared model behavior, and `app/Helpers/` for utilities.
+- If the same logic is needed in a second place, extract it to the appropriate location above rather than duplicating it — don't force an abstraction on first use.

@@ -54,26 +54,41 @@ class GlCode extends Model
         );
     }
 
+    /**
+     * @return BelongsTo<Fund, $this>
+     */
     public function fund(): BelongsTo
     {
         return $this->belongsTo(Fund::class, 'fund_code', 'code');
     }
 
+    /**
+     * @return BelongsTo<Department, $this>
+     */
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'department_code', 'code');
     }
 
+    /**
+     * @return BelongsTo<Division, $this>
+     */
     public function division(): BelongsTo
     {
         return $this->belongsTo(Division::class);
     }
 
+    /**
+     * @return BelongsTo<ObjectCode, $this>
+     */
     public function objectCode(): BelongsTo
     {
         return $this->belongsTo(ObjectCode::class, 'object_code', 'code');
     }
 
+    /**
+     * @return BelongsTo<SubObjectCode, $this>
+     */
     public function subObjectCode(): BelongsTo
     {
         return $this->belongsTo(SubObjectCode::class);

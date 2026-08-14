@@ -22,4 +22,37 @@ return [
         'timezone' => env('TDX_HARDWARE_SYNC_TIMEZONE', 'America/Anchorage'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mobile Device Sync Schedule
+    |--------------------------------------------------------------------------
+    |
+    | Same as above, but for the mobile device sync job. Independent cadence
+    | from the hardware model sync so each can be tuned separately.
+    |
+    */
+
+    'mobile_sync' => [
+        'frequency' => env('TDX_MOBILE_SYNC_FREQUENCY', 'daily'),
+        'time_of_day' => env('TDX_MOBILE_SYNC_TIME', '23:30'),
+        'interval_hours' => env('TDX_MOBILE_SYNC_INTERVAL_HOURS'),
+        'timezone' => env('TDX_MOBILE_SYNC_TIMEZONE', 'America/Anchorage'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Connection
+    |--------------------------------------------------------------------------
+    |
+    | Credentials for authenticating against the TDX Web API. See
+    | App\Support\Tdx\TdxClient for how these are used.
+    |
+    */
+
+    'api' => [
+        'base_url' => env('TDX_BASE_URL', 'https://support.matsu.gov/TDWebApi/api'),
+        'username' => env('TDX_USERNAME'),
+        'password' => env('TDX_PASSWORD'),
+    ],
+
 ];

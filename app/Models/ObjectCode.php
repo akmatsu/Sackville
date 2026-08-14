@@ -40,11 +40,17 @@ class ObjectCode extends Model
         ];
     }
 
+    /**
+     * @return HasMany<SubObjectCode, $this>
+     */
     public function subObjectCodes(): HasMany
     {
         return $this->hasMany(SubObjectCode::class, 'object_code', 'code');
     }
 
+    /**
+     * @return HasMany<GlCode, $this>
+     */
     public function glCodes(): HasMany
     {
         return $this->hasMany(GlCode::class, 'object_code', 'code');
