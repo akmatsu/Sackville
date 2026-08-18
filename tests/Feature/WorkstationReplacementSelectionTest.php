@@ -96,7 +96,7 @@ test('a replacement does not add a new docking station when the outgoing asset a
     $this->actingAs($user);
 
     livewire('pages::workstations.replacements')
-        ->assertSee('Yes')
+        ->assertSee($asset->asset_tag)
         ->set("selections.{$asset->id}.hardware_model_id", $replacementModel->id)
         ->call('save', $asset->id);
 
@@ -105,25 +105,6 @@ test('a replacement does not add a new docking station when the outgoing asset a
         'hardware_model_id' => $replacementModel->id,
         'with_docking' => false,
     ]);
-});
-
-test('the docking station column shows Unknown when TDX has not reported a docking status', function () {
-    $user = User::factory()->create();
-    ['division' => $division, 'asset' => $asset] = setUpWorkstationReplacementFixtures([
-        'has_docking_station' => null,
-    ]);
-
-    Responsibility::factory()->create([
-        'user_id' => $user->id,
-        'scope_type' => 'division',
-        'responsible_division_id' => $division->id,
-        'role' => 'view',
-    ]);
-
-    $this->actingAs($user);
-
-    livewire('pages::workstations.replacements')
-        ->assertSee('Unknown');
 });
 
 test('re-selecting a replacement updates the existing selection instead of duplicating it', function () {

@@ -571,7 +571,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                     <flux:table.column>{{ __('Plan status') }}</flux:table.column>
                     <flux:table.column>{{ __('Replacement cost') }}</flux:table.column>
                     <flux:table.column>{{ __('Notes') }}</flux:table.column>
-                    <flux:table.column></flux:table.column>
+                    <flux:table.column sticky class="bg-white dark:bg-zinc-900"></flux:table.column>
                 </flux:table.columns>
                 <flux:table.rows>
                     @foreach ($this->groupedRows as $row)
@@ -652,10 +652,11 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                                         {{ $this->selections[$asset->id]['notes'] ?? '—' }}
                                     </flux:text>
                                 </flux:table.cell>
-                                <flux:table.cell>
+                                <flux:table.cell sticky class="bg-white dark:bg-zinc-900">
                                     @if ($this->canEdit($asset))
                                         <flux:modal.trigger name="edit-replacement">
-                                            <flux:button wire:click="edit({{ $asset->id }})" size="sm">
+                                            <flux:button wire:click="edit({{ $asset->id }})" size="sm"
+                                                variant="primary" color="blue">
                                                 {{ __('Edit') }}
                                             </flux:button>
                                         </flux:modal.trigger>
@@ -681,7 +682,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                                 <flux:table.cell colspan="2"></flux:table.cell>
                                 <flux:table.cell class="font-medium">${{ number_format($row['replacement'], 2) }}
                                 </flux:table.cell>
-                                <flux:table.cell colspan="2"></flux:table.cell>
+                                <flux:table.cell colspan="2" sticky class="bg-white dark:bg-zinc-900"></flux:table.cell>
                             </flux:table.row>
                         @elseif ($row['type'] === 'grand_total')
                             <flux:table.row>
@@ -698,7 +699,7 @@ new #[Title('Mobile Device Replacements')] class extends Component {
                                 <flux:table.cell colspan="2"></flux:table.cell>
                                 <flux:table.cell class="font-semibold">${{ number_format($row['replacement'], 2) }}
                                 </flux:table.cell>
-                                <flux:table.cell colspan="2"></flux:table.cell>
+                                <flux:table.cell colspan="2" sticky class="bg-white dark:bg-zinc-900"></flux:table.cell>
                             </flux:table.row>
                         @endif
                     @endforeach

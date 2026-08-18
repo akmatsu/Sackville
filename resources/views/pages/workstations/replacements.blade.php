@@ -584,10 +584,9 @@ new #[Title('Workstation Replacements')] class extends Component {
                     <flux:table.column>{{ __('Warranty ends') }}</flux:table.column>
                     <flux:table.column>{{ __('Current cost') }}</flux:table.column>
                     <flux:table.column>{{ __('Replacement model') }}</flux:table.column>
-                    <flux:table.column>{{ __('Docking station') }}</flux:table.column>
                     <flux:table.column>{{ __('Replacement cost') }}</flux:table.column>
                     <flux:table.column>{{ __('Notes') }}</flux:table.column>
-                    <flux:table.column></flux:table.column>
+                    <flux:table.column sticky class="bg-white dark:bg-zinc-900"></flux:table.column>
                 </flux:table.columns>
                 <flux:table.rows>
                     @foreach ($this->groupedRows as $row)
@@ -595,7 +594,7 @@ new #[Title('Workstation Replacements')] class extends Component {
 
                         @if ($row['type'] === 'header' && $row['depth'] === 0)
                             <flux:table.row>
-                                <flux:table.cell colspan="11"
+                                <flux:table.cell colspan="10"
                                     class="border-t border-zinc-200 bg-zinc-100 py-1 dark:border-zinc-700 dark:bg-zinc-800">
                                     <button type="button" wire:click="toggleDivision('{{ $row['division_key'] }}')"
                                         class="flex w-full cursor-pointer items-center gap-2 text-left">
@@ -613,7 +612,7 @@ new #[Title('Workstation Replacements')] class extends Component {
                             </flux:table.row>
                         @elseif ($row['type'] === 'header')
                             <flux:table.row>
-                                <flux:table.cell colspan="11"
+                                <flux:table.cell colspan="10"
                                     class="bg-zinc-50 pl-8 text-sm font-medium text-zinc-500 dark:bg-zinc-900/40 dark:text-zinc-400">
                                     {{ $row['label'] }}
                                 </flux:table.cell>
@@ -658,11 +657,6 @@ new #[Title('Workstation Replacements')] class extends Component {
                                 </flux:table.cell>
                                 <flux:table.cell>
                                     <flux:text size="sm">
-                                        {{ match ($asset->has_docking_station) {true => __('Yes'),false => __('No'),null => __('Unknown')} }}
-                                    </flux:text>
-                                </flux:table.cell>
-                                <flux:table.cell>
-                                    <flux:text size="sm">
                                         {{ $row['replacement_cost'] !== null ? '$' . number_format($row['replacement_cost'], 2) : '—' }}
                                     </flux:text>
                                 </flux:table.cell>
@@ -671,10 +665,11 @@ new #[Title('Workstation Replacements')] class extends Component {
                                         {{ $this->selections[$asset->id]['notes'] ?? '—' }}
                                     </flux:text>
                                 </flux:table.cell>
-                                <flux:table.cell>
+                                <flux:table.cell sticky class="bg-white dark:bg-zinc-900">
                                     @if ($this->canEdit($asset))
                                         <flux:modal.trigger name="edit-replacement">
-                                            <flux:button wire:click="edit({{ $asset->id }})" size="sm">
+                                            <flux:button wire:click="edit({{ $asset->id }})" size="sm"
+                                                variant="primary" color="blue">
                                                 {{ __('Edit') }}
                                             </flux:button>
                                         </flux:modal.trigger>
@@ -697,10 +692,10 @@ new #[Title('Workstation Replacements')] class extends Component {
                                 </flux:table.cell>
                                 <flux:table.cell class="font-medium">${{ number_format($row['current'], 2) }}
                                 </flux:table.cell>
-                                <flux:table.cell colspan="2"></flux:table.cell>
+                                <flux:table.cell></flux:table.cell>
                                 <flux:table.cell class="font-medium">${{ number_format($row['replacement'], 2) }}
                                 </flux:table.cell>
-                                <flux:table.cell colspan="2"></flux:table.cell>
+                                <flux:table.cell colspan="2" sticky class="bg-white dark:bg-zinc-900"></flux:table.cell>
                             </flux:table.row>
                         @elseif ($row['type'] === 'grand_total')
                             <flux:table.row>
@@ -714,10 +709,10 @@ new #[Title('Workstation Replacements')] class extends Component {
                                 </flux:table.cell>
                                 <flux:table.cell class="font-semibold">${{ number_format($row['current'], 2) }}
                                 </flux:table.cell>
-                                <flux:table.cell colspan="2"></flux:table.cell>
+                                <flux:table.cell></flux:table.cell>
                                 <flux:table.cell class="font-semibold">${{ number_format($row['replacement'], 2) }}
                                 </flux:table.cell>
-                                <flux:table.cell colspan="2"></flux:table.cell>
+                                <flux:table.cell colspan="2" sticky class="bg-white dark:bg-zinc-900"></flux:table.cell>
                             </flux:table.row>
                         @endif
                     @endforeach
