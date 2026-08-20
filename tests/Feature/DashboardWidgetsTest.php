@@ -6,9 +6,11 @@ use App\Models\HardwareCategory;
 use App\Models\HardwareModel;
 use App\Models\HardwareReplacementGroup;
 use App\Models\HardwareReplacementSelection;
+use App\Models\PublicWifiCircuitReview;
 use App\Models\Responsibility;
 use App\Models\ResponsibleDivision;
 use App\Models\TdxAsset;
+use App\Models\TdxPublicWifiCircuit;
 use App\Models\User;
 
 use function Pest\Livewire\livewire;
@@ -189,4 +191,103 @@ test('the budget cycle widget shows a full ring for a closed cycle', function ()
     $component = livewire('dashboard.budget-cycle-status');
 
     expect($component->instance()->progressRatio)->toBe(1.0);
+});
+
+test('the public wifi widget counts circuits eligible for and reviewed in the open cycle', function () {
+    $cycle = BudgetCycle::factory()->create(['fiscal_year' => 28, 'status' => BudgetCycleStatus::Open]);
+    $division = ResponsibleDivision::factory()->create();
+
+    $reviewedCircuit = TdxPublicWifiCircuit::factory()->create([
+        'responsible_division_id' => $division->id,
+        'status' => 'Active',
+    ]);
+    PublicWifiCircuitReview::factory()->create([
+        'budget_cycle_id' => $cycle->id,
+        'tdx_public_wifi_circuit_id' => $reviewedCircuit->id,
+        'still_needed' => true,
+        'justification' => 'Still needed.',
+    ]);
+
+    TdxPublicWifiCircuit::factory()->create([
+        'responsible_division_id' => $division->id,
+        'status' => 'Active',
+    ]);
+
+    $user = User::factory()->create();
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $component = livewire('dashboard.public-wifi-review-status');
+
+    expect($component->instance()->eligibleCount)->toBe(2);
+    expect($component->instance()->reviewedCount)->toBe(1);
+});
+
+test('the public wifi widget only counts circuits visible to the user', function () {
+    BudgetCycle::factory()->create(['fiscal_year' => 28, 'status' => BudgetCycleStatus::Open]);
+    $division = ResponsibleDivision::factory()->create();
+    $otherDivision = ResponsibleDivision::factory()->create();
+
+    TdxPublicWifiCircuit::factory()->create([
+        'responsible_division_id' => $otherDivision->id,
+        'status' => 'Active',
+    ]);
+
+    $user = User::factory()->create();
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $component = livewire('dashboard.public-wifi-review-status');
+
+    expect($component->instance()->eligibleCount)->toBe(0);
+});
+
+test('the public wifi widget excludes surplus circuits', function () {
+    BudgetCycle::factory()->create(['fiscal_year' => 28, 'status' => BudgetCycleStatus::Open]);
+    $division = ResponsibleDivision::factory()->create();
+
+    TdxPublicWifiCircuit::factory()->create([
+        'responsible_division_id' => $division->id,
+        'status' => 'Surplus',
+    ]);
+
+    $user = User::factory()->create();
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $component = livewire('dashboard.public-wifi-review-status');
+
+    expect($component->instance()->eligibleCount)->toBe(0);
+});
+
+test('the public wifi widget shows an empty state when there is no open budget cycle', function () {
+    $this->actingAs(User::factory()->create());
+
+    livewire('dashboard.public-wifi-review-status')
+        ->assertSee('No open budget cycle.');
+});
+
+test('the public wifi widget links to the reviews page', function () {
+    $this->actingAs(User::factory()->create());
+
+    livewire('dashboard.public-wifi-review-status')
+        ->assertSeeHtml(route('public-wifi.reviews'));
 });

@@ -21,6 +21,9 @@
                     <flux:sidebar.item icon="device-phone-mobile" :href="route('mobile.replacements')" :current="request()->routeIs('mobile.replacements')" wire:navigate>
                         {{ __('Mobile Replacements') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="wifi" :href="route('public-wifi.reviews')" :current="request()->routeIs('public-wifi.reviews')" wire:navigate>
+                        {{ __('Public Wifi Review') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

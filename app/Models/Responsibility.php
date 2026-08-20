@@ -89,4 +89,29 @@ class Responsibility extends Model
                 && $asset->glCode?->code_string === $this->scope_value,
         };
     }
+
+    /**
+     * Whether this responsibility's scope covers the given public wifi
+     * circuit.
+     *
+     * Kept in sync with {@see TdxPublicWifiCircuit::scopeVisibleTo()}, which
+     * applies the same rules at the SQL level for query filtering.
+     */
+    public function matchesPublicWifiCircuit(TdxPublicWifiCircuit $circuit): bool
+    {
+        return match ($this->scope_type) {
+            ResponsibilityScopeType::Division => $this->responsible_division_id !== null
+                && $this->responsible_division_id === $circuit->responsible_division_id,
+            ResponsibilityScopeType::Location => $this->responsible_location_id !== null
+                && $this->responsible_location_id === $circuit->responsible_location_id,
+            ResponsibilityScopeType::Department => filled($this->scope_value)
+                && $circuit->assigned_department_code === $this->scope_value,
+            ResponsibilityScopeType::Fund => filled($this->scope_value)
+                && $circuit->glCode?->fund_code === $this->scope_value,
+            ResponsibilityScopeType::Object => filled($this->scope_value)
+                && $circuit->glCode?->object_code === $this->scope_value,
+            ResponsibilityScopeType::SpecificGl => filled($this->scope_value)
+                && $circuit->glCode?->code_string === $this->scope_value,
+        };
+    }
 }
