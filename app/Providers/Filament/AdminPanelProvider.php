@@ -59,9 +59,10 @@ class AdminPanelProvider extends PanelProvider
             ->maxContentWidth('full')
             ->collapsibleNavigationGroups()
             ->sidebarCollapsibleOnDesktop()->navigationGroups([
+                NavigationGroup::make('Inventory'),
                 NavigationGroup::make('Catalog'),
                 NavigationGroup::make('Budgeting'),
-                NavigationGroup::make('Integrations & Logs'),
+                NavigationGroup::make('Activity & Logs'),
                 NavigationGroup::make('Administration'),
             ]);
     }

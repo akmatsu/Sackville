@@ -20,7 +20,7 @@ class SyncRunResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowPathRoundedSquare;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Integrations & Logs';
+    protected static string|UnitEnum|null $navigationGroup = 'Activity & Logs';
 
     protected static ?string $navigationLabel = 'Sync Runs';
 

@@ -20,7 +20,7 @@ class ActivityLogResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Integrations & Logs';
+    protected static string|UnitEnum|null $navigationGroup = 'Activity & Logs';
 
     protected static ?string $navigationLabel = 'Activity Log';
 
