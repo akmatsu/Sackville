@@ -1,7 +1,10 @@
 <?php
 
 use App\Enums\BudgetCycleStatus;
+use App\Enums\BudgetLineItemStatus;
+use App\Enums\BudgetLineItemType;
 use App\Models\BudgetCycle;
+use App\Models\BudgetLineItem;
 use App\Models\HardwareCategory;
 use App\Models\HardwareModel;
 use App\Models\HardwareModelCost;
@@ -183,7 +186,7 @@ test('opting out does not count toward the pending total', function () {
 
     expect($assetRow['opted_out'])->toBeTrue();
 
-    $grandTotal = collect($component->instance()->groupedRows)->firstWhere('type', 'grand_total');
+    $grandTotal = collect($component->instance()->totalsRows)->firstWhere('type', 'grand_total');
 
     expect($grandTotal['pending'])->toBe(0);
 });
@@ -468,16 +471,10 @@ test('an asset with a direct division and no location still gets a division-leve
         ->assertSee('Information Technology — Business Operations subtotal');
 });
 
-test('current and replacement model costs render and update as the replacement selection changes', function () {
+test('replacement model cost renders and updates as the replacement selection changes', function () {
     $user = User::factory()->create();
-    ['division' => $division, 'currentModel' => $currentModel, 'replacementModel' => $replacementModel, 'asset' => $asset] = setUpWorkstationReplacementFixtures();
+    ['division' => $division, 'replacementModel' => $replacementModel, 'asset' => $asset] = setUpWorkstationReplacementFixtures();
 
-    HardwareModelCost::factory()->create([
-        'hardware_model_id' => $currentModel->id,
-        'fiscal_year' => 28,
-        'unit_cost' => 1200,
-        'with_docking' => false,
-    ]);
     HardwareModelCost::factory()->create([
         'hardware_model_id' => $replacementModel->id,
         'fiscal_year' => 28,
@@ -494,14 +491,14 @@ test('current and replacement model costs render and update as the replacement s
 
     $this->actingAs($user);
 
-    $component = livewire('pages::workstations.replacements')->assertSee('$1,200.00');
+    $component = livewire('pages::workstations.replacements');
 
     $assetRow = fn () => collect($component->instance()->groupedRows)->firstWhere('type', 'asset');
 
-    expect($assetRow()['current_cost'])->toBe(1200.0);
     expect($assetRow()['replacement_cost'])->toBeNull();
 
-    $component->set("selections.{$asset->id}.hardware_model_id", $replacementModel->id);
+    $component->set("selections.{$asset->id}.hardware_model_id", $replacementModel->id)
+        ->assertSee('$1,500.00');
 
     expect($assetRow()['replacement_cost'])->toBe(1500.0);
 });
@@ -923,4 +920,86 @@ test('resetFilters clears search and all filters', function () {
     expect($component->get('statusFilter'))->toBe('all');
     expect($component->get('cycleFilter'))->toBe('all');
     expect($component->get('divisionFilter'))->toBe('');
+});
+
+test('new asset request costs roll up into the division subtotal and grand total', function () {
+    $user = User::factory()->create();
+    ['cycle' => $cycle, 'division' => $division, 'currentModel' => $currentModel, 'asset' => $asset] = setUpWorkstationReplacementFixtures();
+
+    BudgetLineItem::factory()->create([
+        'budget_cycle_id' => $cycle->id,
+        'responsible_division_id' => $division->id,
+        'item_type' => BudgetLineItemType::HardwareAddition,
+        'hardware_model_id' => $currentModel->id,
+        'proposed_cost' => 500,
+        'status' => BudgetLineItemStatus::NotStarted,
+        'created_by_id' => $user->id,
+    ]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $division->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $totals = collect(livewire('pages::workstations.replacements')->instance()->totalsRows);
+
+    $divisionSubtotal = $totals->first(fn (array $row): bool => $row['type'] === 'subtotal' && $row['depth'] === 0 && $row['label'] === $division->department_name.' — '.$division->name);
+    $grandTotal = $totals->firstWhere('type', 'grand_total');
+
+    expect($divisionSubtotal['new_requests'])->toBe(500.0);
+    expect($divisionSubtotal['replacement'])->toBe(0.0);
+    expect($grandTotal['new_requests'])->toBe(500.0);
+});
+
+test('a division with only a new asset request still gets a subtotal row, and the grand total appears once', function () {
+    $user = User::factory()->create();
+    ['cycle' => $cycle, 'division' => $divisionWithAsset, 'currentModel' => $currentModel] = setUpWorkstationReplacementFixtures();
+
+    $requestOnlyDivision = ResponsibleDivision::factory()->create([
+        'department_name' => 'Information Technology',
+        'name' => 'Field Services',
+    ]);
+
+    BudgetLineItem::factory()->create([
+        'budget_cycle_id' => $cycle->id,
+        'responsible_division_id' => $requestOnlyDivision->id,
+        'item_type' => BudgetLineItemType::HardwareAddition,
+        'hardware_model_id' => $currentModel->id,
+        'proposed_cost' => 800,
+        'status' => BudgetLineItemStatus::NotStarted,
+        'created_by_id' => $user->id,
+    ]);
+
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $divisionWithAsset->id,
+        'role' => 'view',
+    ]);
+    Responsibility::factory()->create([
+        'user_id' => $user->id,
+        'scope_type' => 'division',
+        'responsible_division_id' => $requestOnlyDivision->id,
+        'role' => 'view',
+    ]);
+
+    $this->actingAs($user);
+
+    $component = livewire('pages::workstations.replacements')->assertSeeText('Grand total');
+    $rows = collect($component->instance()->groupedRows);
+    $totals = collect($component->instance()->totalsRows);
+
+    $requestOnlyAssetRows = $rows->filter(fn (array $row): bool => $row['type'] === 'asset' && $row['division_key'] === 'division:'.$requestOnlyDivision->id);
+    $requestOnlySubtotal = $totals->first(fn (array $row): bool => $row['type'] === 'subtotal' && $row['depth'] === 0 && $row['label'] === $requestOnlyDivision->department_name.' — '.$requestOnlyDivision->name);
+    $grandTotal = $totals->firstWhere('type', 'grand_total');
+
+    expect($requestOnlyAssetRows)->toBeEmpty();
+    expect($requestOnlySubtotal)->not->toBeNull();
+    expect($requestOnlySubtotal['new_requests'])->toBe(800.0);
+    expect($grandTotal['new_requests'])->toBe(800.0);
+    expect(substr_count($component->html(), 'Grand total'))->toBe(1);
 });

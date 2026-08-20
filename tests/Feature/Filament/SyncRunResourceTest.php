@@ -5,7 +5,9 @@ use App\Enums\SyncRunStatus;
 use App\Filament\Resources\SyncRuns\Pages\ListSyncRuns;
 use App\Filament\Resources\SyncRuns\Pages\ViewSyncRun;
 use App\Jobs\SyncTdxHardwareModels;
+use App\Jobs\SyncTdxMetronet;
 use App\Jobs\SyncTdxMobileDevices;
+use App\Jobs\SyncTdxPublicWifi;
 use App\Models\SyncRun;
 use App\Models\SyncSchedule;
 use App\Models\User;
@@ -139,6 +141,108 @@ it('allows configuring the mobile sync schedule to run more frequently', functio
         'integration' => 'tdx-mobile',
         'frequency' => 'every_n_hours',
         'interval_hours' => 6,
+        'time_of_day' => null,
+    ]);
+});
+
+it('allows manually triggering a public wifi sync', function () {
+    Queue::fake();
+
+    livewire(ListSyncRuns::class)
+        ->callAction('syncPublicWifi')
+        ->assertNotified();
+
+    Queue::assertPushed(SyncTdxPublicWifi::class);
+});
+
+it('immediately shows a running sync run when a public wifi sync is triggered, before the queue picks it up', function () {
+    Queue::fake();
+
+    $component = livewire(ListSyncRuns::class)
+        ->callAction('syncPublicWifi');
+
+    $syncRun = SyncRun::query()->where('integration', 'tdx-public-wifi')->sole();
+
+    expect($syncRun->status)->toBe(SyncRunStatus::Running);
+    expect($syncRun->finished_at)->toBeNull();
+
+    $component->assertCanSeeTableRecords([$syncRun]);
+
+    Queue::assertPushed(SyncTdxPublicWifi::class, fn (SyncTdxPublicWifi $job): bool => $job->syncRunId === $syncRun->id);
+});
+
+it('shows the current public wifi schedule when opening the configure public wifi schedule action', function () {
+    livewire(ListSyncRuns::class)
+        ->mountAction('configurePublicWifiSchedule')
+        ->assertSchemaStateSet([
+            'frequency' => SyncFrequency::Daily,
+            'time_of_day' => '00:00',
+        ]);
+});
+
+it('allows configuring the public wifi sync schedule to run more frequently', function () {
+    livewire(ListSyncRuns::class)
+        ->callAction('configurePublicWifiSchedule', data: [
+            'frequency' => 'every_n_hours',
+            'interval_hours' => 8,
+        ])
+        ->assertNotified();
+
+    assertDatabaseHas(SyncSchedule::class, [
+        'integration' => 'tdx-public-wifi',
+        'frequency' => 'every_n_hours',
+        'interval_hours' => 8,
+        'time_of_day' => null,
+    ]);
+});
+
+it('allows manually triggering a metronet sync', function () {
+    Queue::fake();
+
+    livewire(ListSyncRuns::class)
+        ->callAction('syncMetronet')
+        ->assertNotified();
+
+    Queue::assertPushed(SyncTdxMetronet::class);
+});
+
+it('immediately shows a running sync run when a metronet sync is triggered, before the queue picks it up', function () {
+    Queue::fake();
+
+    $component = livewire(ListSyncRuns::class)
+        ->callAction('syncMetronet');
+
+    $syncRun = SyncRun::query()->where('integration', 'tdx-metronet')->sole();
+
+    expect($syncRun->status)->toBe(SyncRunStatus::Running);
+    expect($syncRun->finished_at)->toBeNull();
+
+    $component->assertCanSeeTableRecords([$syncRun]);
+
+    Queue::assertPushed(SyncTdxMetronet::class, fn (SyncTdxMetronet $job): bool => $job->syncRunId === $syncRun->id);
+});
+
+it('shows the current metronet schedule when opening the configure metronet schedule action', function () {
+    livewire(ListSyncRuns::class)
+        ->mountAction('configureMetronetSchedule')
+        ->assertSchemaStateSet([
+            'frequency' => SyncFrequency::Daily,
+            'time_of_day' => '00:30',
+        ]);
+});
+
+it('allows configuring the metronet sync schedule to run more frequently', function () {
+    livewire(ListSyncRuns::class)
+        ->callAction('configureMetronetSchedule', data: [
+            'frequency' => 'every_n_hours',
+            'interval_hours' => 12,
+        ])
+        ->assertNotified();
+
+    assertDatabaseHas(SyncSchedule::class, [
+        'integration' => 'tdx-metronet',
+        'frequency' => 'every_n_hours',
+        'interval_hours' => 12,
         'time_of_day' => null,
     ]);
 });

@@ -66,6 +66,8 @@ class SyncSchedule extends Model
     {
         return match ($integration) {
             'tdx-mobile' => 'mobile_sync',
+            'tdx-public-wifi' => 'public_wifi_sync',
+            'tdx-metronet' => 'metronet_sync',
             default => 'hardware_sync',
         };
     }

@@ -41,6 +41,40 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public Wifi Sync Schedule
+    |--------------------------------------------------------------------------
+    |
+    | Same as above, but for the public wifi circuit sync job. Independent
+    | cadence from the other syncs so each can be tuned separately.
+    |
+    */
+
+    'public_wifi_sync' => [
+        'frequency' => env('TDX_PUBLIC_WIFI_SYNC_FREQUENCY', 'daily'),
+        'time_of_day' => env('TDX_PUBLIC_WIFI_SYNC_TIME', '00:00'),
+        'interval_hours' => env('TDX_PUBLIC_WIFI_SYNC_INTERVAL_HOURS'),
+        'timezone' => env('TDX_PUBLIC_WIFI_SYNC_TIMEZONE', 'America/Anchorage'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Metronet Sync Schedule
+    |--------------------------------------------------------------------------
+    |
+    | Same as above, but for the Metronet circuit sync job. Independent
+    | cadence from the other syncs so each can be tuned separately.
+    |
+    */
+
+    'metronet_sync' => [
+        'frequency' => env('TDX_METRONET_SYNC_FREQUENCY', 'daily'),
+        'time_of_day' => env('TDX_METRONET_SYNC_TIME', '00:30'),
+        'interval_hours' => env('TDX_METRONET_SYNC_INTERVAL_HOURS'),
+        'timezone' => env('TDX_METRONET_SYNC_TIMEZONE', 'America/Anchorage'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | API Connection
     |--------------------------------------------------------------------------
     |

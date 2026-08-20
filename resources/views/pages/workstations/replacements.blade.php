@@ -1,15 +1,21 @@
 <?php
 
+use App\Enums\BudgetLineItemStatus;
+use App\Enums\BudgetLineItemType;
 use App\Enums\ResponsibilityRole;
 use App\Models\BudgetCycle;
+use App\Models\BudgetLineItem;
+use App\Models\GlCode;
 use App\Models\HardwareCategory;
 use App\Models\HardwareModel;
 use App\Models\HardwareModelCost;
 use App\Models\HardwareReplacementGroup;
 use App\Models\HardwareReplacementSelection;
+use App\Models\LineItemGlAllocation;
 use App\Models\Responsibility;
 use App\Models\ResponsibleDivision;
 use App\Models\TdxAsset;
+use App\Services\HardwareAdditionGlResolver;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -38,6 +44,19 @@ new #[Title('Workstation Replacements')] class extends Component {
     public string $cycleFilter = 'all';
 
     public string $divisionFilter = '';
+
+    /**
+     * @var array{responsible_division_id: int|string|null, hardware_model_id: int|string|null, with_docking: bool, quantity: int, justification: string|null}
+     */
+    public array $newRequest = [
+        'responsible_division_id' => null,
+        'hardware_model_id' => null,
+        'with_docking' => false,
+        'quantity' => 1,
+        'justification' => null,
+    ];
+
+    public ?int $editingRequestId = null;
 
     public function mount(): void
     {
@@ -218,9 +237,7 @@ new #[Title('Workstation Replacements')] class extends Component {
 
     /**
      * Reference-only catalog unit costs for the open cycle's fiscal year, keyed
-     * by "{modelId}:{withDocking}". Covers both the eligible replacement models
-     * and every model currently assigned to an eligible asset, so it serves
-     * both the current-cost and replacement-cost columns from one lookup.
+     * by "{modelId}:{withDocking}", for the eligible replacement models.
      *
      * @return Collection<string, HardwareModelCost>
      */
@@ -233,25 +250,7 @@ new #[Title('Workstation Replacements')] class extends Component {
             return collect();
         }
 
-        $modelIds = $this->eligibleModels
-            ->pluck('id')
-            ->merge($this->baseEligibleAssets->pluck('hardware_model_id')->filter())
-            ->unique();
-
-        return HardwareModelCost::query()->whereIn('hardware_model_id', $modelIds)->where('fiscal_year', $cycle->fiscal_year)->get()->keyBy(fn(HardwareModelCost $cost): string => $cost->hardware_model_id . ':' . ($cost->with_docking ? '1' : '0'));
-    }
-
-    /**
-     * The current model's reference unit cost, priced with docking if the
-     * TDX-synced asset is known to already have a docking station.
-     */
-    protected function currentCostFor(TdxAsset $asset): ?float
-    {
-        if ($asset->hardware_model_id === null) {
-            return null;
-        }
-
-        return $this->modelCostFor($asset->hardware_model_id, $asset->has_docking_station === true);
+        return HardwareModelCost::query()->whereIn('hardware_model_id', $this->eligibleModels->pluck('id'))->where('fiscal_year', $cycle->fiscal_year)->get()->keyBy(fn(HardwareModelCost $cost): string => $cost->hardware_model_id . ':' . ($cost->with_docking ? '1' : '0'));
     }
 
     /**
@@ -305,19 +304,18 @@ new #[Title('Workstation Replacements')] class extends Component {
     }
 
     /**
-     * @return array{current: float, replacement: float, pending: int}
+     * @return array{replacement: float, new_requests: float, pending: int}
      */
     protected function zeroTotals(): array
     {
-        return ['current' => 0.0, 'replacement' => 0.0, 'pending' => 0];
+        return ['replacement' => 0.0, 'new_requests' => 0.0, 'pending' => 0];
     }
 
     /**
-     * @param  array{current: float, replacement: float, pending: int}  $totals
+     * @param  array{replacement: float, new_requests: float, pending: int}  $totals
      */
-    protected function accumulate(array &$totals, ?float $currentCost, ?float $replacementCost, bool $pending): void
+    protected function accumulate(array &$totals, ?float $replacementCost, bool $pending): void
     {
-        $totals['current'] += $currentCost ?? 0.0;
         $totals['replacement'] += $replacementCost ?? 0.0;
         $totals['pending'] += $pending ? 1 : 0;
     }
@@ -328,24 +326,85 @@ new #[Title('Workstation Replacements')] class extends Component {
     }
 
     /**
-     * Flattened, ordered rows for the replacements table: a header row when
-     * entering a new division/location group, one row per asset, a subtotal
-     * row when leaving a group (innermost first), and a grand total row at
-     * the very end. Kept flat (rather than nested loops in the Blade
-     * template) so the table stays a single @foreach with a row-type switch.
+     * New-asset-request (hardware addition) totals for the open cycle,
+     * summed per division from myRequests. Used to fold "new asset
+     * requests" spend into the replacement table's division subtotals and
+     * grand total, which otherwise only ever see replacement selections.
      *
-     * Division rows fold the department into their label (division names
-     * are unique on their own, but showing the department they belong to
-     * gives directors the rollup context a separate department row used to
-     * provide) and carry a `division_key` so the template can hide their
-     * location/asset rows when the division is collapsed.
-     *
-     * @return list<array<string, mixed>>
+     * @return Collection<int, float>
      */
     #[Computed]
-    public function groupedRows(): array
+    public function newRequestTotals(): Collection
+    {
+        return $this->myRequests
+            ->filter(fn(BudgetLineItem $item): bool => $item->responsible_division_id !== null)
+            ->groupBy('responsible_division_id')
+            ->map(fn(Collection $items): float => (float) $items->sum(fn(BudgetLineItem $item) => $item->proposed_cost ?? 0.0));
+    }
+
+    protected function divisionIdFromKey(?string $divisionKey): ?int
+    {
+        if ($divisionKey === null || !str_starts_with($divisionKey, 'division:')) {
+            return null;
+        }
+
+        return (int) substr($divisionKey, strlen('division:'));
+    }
+
+    /**
+     * Adds $divisionKey's new-asset-request total (if any) into the totals
+     * for the division subtotal row about to be closed, and into the grand
+     * total, recording the division as covered so it isn't emitted again as
+     * a leftover, request-only row after the main asset loop.
+     *
+     * @param  array{replacement: float, new_requests: float, pending: int}  $divisionTotals
+     * @param  array{replacement: float, new_requests: float, pending: int}  $grandTotals
+     * @param  list<int>  $consumedDivisionIds
+     */
+    protected function foldNewRequestsIntoDivision(?string $divisionKey, array &$divisionTotals, array &$grandTotals, array &$consumedDivisionIds): void
+    {
+        $divisionId = $this->divisionIdFromKey($divisionKey);
+
+        if ($divisionId === null) {
+            return;
+        }
+
+        $amount = $this->newRequestTotals->get($divisionId, 0.0);
+
+        if ($amount > 0.0) {
+            $divisionTotals['new_requests'] += $amount;
+            $grandTotals['new_requests'] += $amount;
+            $consumedDivisionIds[] = $divisionId;
+        }
+    }
+
+    /**
+     * Builds the replacements table's rows and the totals table's rows in a
+     * single pass over eligibleAssets, since both are derived from the same
+     * division/location walk. Memoized as one Computed property so
+     * groupedRows() and totalsRows() (which read from it) don't repeat the
+     * walk.
+     *
+     * `rows`: a header row when entering a new division/location group, and
+     * one row per asset. Division rows fold the department into their label
+     * (division names are unique on their own, but showing the department
+     * they belong to gives directors the rollup context a separate
+     * department row used to provide) and carry a `division_key` so the
+     * template can hide their location/asset rows when the division is
+     * collapsed.
+     *
+     * `totals`: a subtotal row when leaving a division/location group
+     * (innermost first), one for any division with a new-asset request but
+     * no assets due for replacement this cycle, and a grand total row at
+     * the very end.
+     *
+     * @return array{rows: list<array<string, mixed>>, totals: list<array<string, mixed>>}
+     */
+    #[Computed]
+    public function replacementData(): array
     {
         $rows = [];
+        $totals = [];
 
         $currentDivisionKey = null;
         $currentLocationKey = null;
@@ -356,6 +415,9 @@ new #[Title('Workstation Replacements')] class extends Component {
         $divisionTotals = $this->zeroTotals();
         $locationTotals = $this->zeroTotals();
         $grandTotals = $this->zeroTotals();
+
+        /** @var list<int> $consumedDivisionIds */
+        $consumedDivisionIds = [];
 
         foreach ($this->eligibleAssets as $asset) {
             $departmentLabel = $asset->responsibleDivision?->department_name ?? $asset->assigned_department_code ?? __('No department');
@@ -368,12 +430,13 @@ new #[Title('Workstation Replacements')] class extends Component {
 
             if ($divisionKey !== $currentDivisionKey) {
                 if ($currentLocationKey !== null) {
-                    $rows[] = ['type' => 'subtotal', 'depth' => 1, 'division_key' => $currentDivisionKey, 'hide_when_collapsed' => true, 'label' => $this->breadcrumb($lastDivisionLabel, $lastLocationLabel), ...$locationTotals];
+                    $totals[] = ['type' => 'subtotal', 'depth' => 1, 'label' => $this->breadcrumb($lastDivisionLabel, $lastLocationLabel), ...$locationTotals];
                     $locationTotals = $this->zeroTotals();
                     $currentLocationKey = null;
                 }
                 if ($currentDivisionKey !== null) {
-                    $rows[] = ['type' => 'subtotal', 'depth' => 0, 'division_key' => $currentDivisionKey, 'label' => $lastDivisionLabel, ...$divisionTotals];
+                    $this->foldNewRequestsIntoDivision($currentDivisionKey, $divisionTotals, $grandTotals, $consumedDivisionIds);
+                    $totals[] = ['type' => 'subtotal', 'depth' => 0, 'label' => $lastDivisionLabel, ...$divisionTotals];
                     $divisionTotals = $this->zeroTotals();
                 }
 
@@ -383,7 +446,7 @@ new #[Title('Workstation Replacements')] class extends Component {
 
             if ($locationKey !== $currentLocationKey) {
                 if ($currentLocationKey !== null) {
-                    $rows[] = ['type' => 'subtotal', 'depth' => 1, 'division_key' => $divisionKey, 'hide_when_collapsed' => true, 'label' => $this->breadcrumb($lastDivisionLabel, $lastLocationLabel), ...$locationTotals];
+                    $totals[] = ['type' => 'subtotal', 'depth' => 1, 'label' => $this->breadcrumb($lastDivisionLabel, $lastLocationLabel), ...$locationTotals];
                     $locationTotals = $this->zeroTotals();
                 }
 
@@ -394,33 +457,69 @@ new #[Title('Workstation Replacements')] class extends Component {
                 }
             }
 
-            $currentCost = $this->currentCostFor($asset);
             $replacementCost = $this->replacementCostFor($asset);
             $optedOut = (bool) ($this->selections[$asset->id]['opted_out'] ?? false);
             $isPending = !$optedOut && $replacementCost === null;
 
-            $rows[] = ['type' => 'asset', 'division_key' => $divisionKey, 'hide_when_collapsed' => true, 'asset' => $asset, 'current_cost' => $currentCost, 'replacement_cost' => $replacementCost, 'opted_out' => $optedOut];
+            $rows[] = ['type' => 'asset', 'division_key' => $divisionKey, 'hide_when_collapsed' => true, 'asset' => $asset, 'replacement_cost' => $replacementCost, 'opted_out' => $optedOut];
 
-            $this->accumulate($locationTotals, $currentCost, $replacementCost, $isPending);
-            $this->accumulate($divisionTotals, $currentCost, $replacementCost, $isPending);
-            $this->accumulate($grandTotals, $currentCost, $replacementCost, $isPending);
+            $this->accumulate($locationTotals, $replacementCost, $isPending);
+            $this->accumulate($divisionTotals, $replacementCost, $isPending);
+            $this->accumulate($grandTotals, $replacementCost, $isPending);
 
             $lastDivisionLabel = $divisionLabel;
             $lastLocationLabel = $locationLabel;
         }
 
         if ($currentLocationKey !== null) {
-            $rows[] = ['type' => 'subtotal', 'depth' => 1, 'division_key' => $currentDivisionKey, 'hide_when_collapsed' => true, 'label' => $this->breadcrumb($lastDivisionLabel, $lastLocationLabel), ...$locationTotals];
+            $totals[] = ['type' => 'subtotal', 'depth' => 1, 'label' => $this->breadcrumb($lastDivisionLabel, $lastLocationLabel), ...$locationTotals];
         }
         if ($currentDivisionKey !== null) {
-            $rows[] = ['type' => 'subtotal', 'depth' => 0, 'division_key' => $currentDivisionKey, 'label' => $lastDivisionLabel, ...$divisionTotals];
+            $this->foldNewRequestsIntoDivision($currentDivisionKey, $divisionTotals, $grandTotals, $consumedDivisionIds);
+            $totals[] = ['type' => 'subtotal', 'depth' => 0, 'label' => $lastDivisionLabel, ...$divisionTotals];
         }
 
-        if ($rows !== []) {
-            $rows[] = ['type' => 'grand_total', 'label' => __('Grand total'), ...$grandTotals];
+        // Divisions with a new-asset request but no assets due for replacement
+        // this cycle never entered the loop above, so their request total
+        // would otherwise vanish from the totals table entirely.
+        $leftoverDivisions = $this->myRequests
+            ->pluck('responsibleDivision')
+            ->filter()
+            ->unique('id')
+            ->filter(fn(ResponsibleDivision $division): bool => !in_array($division->id, $consumedDivisionIds, true) && $this->newRequestTotals->get($division->id, 0.0) > 0.0)
+            ->sortBy(fn(ResponsibleDivision $division): string => $this->breadcrumb($division->department_name, $division->name));
+
+        foreach ($leftoverDivisions as $division) {
+            $amount = $this->newRequestTotals->get($division->id, 0.0);
+
+            $totals[] = ['type' => 'subtotal', 'depth' => 0, 'label' => $this->breadcrumb($division->department_name, $division->name), ...$this->zeroTotals(), 'new_requests' => $amount];
+
+            $grandTotals['new_requests'] += $amount;
         }
 
-        return $rows;
+        if ($totals !== []) {
+            $totals[] = ['type' => 'grand_total', 'label' => __('Grand total'), ...$grandTotals];
+        }
+
+        return ['rows' => $rows, 'totals' => $totals];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    #[Computed]
+    public function groupedRows(): array
+    {
+        return $this->replacementData['rows'];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    #[Computed]
+    public function totalsRows(): array
+    {
+        return $this->replacementData['totals'];
     }
 
     public function toggleDivision(string $divisionKey): void
@@ -514,6 +613,201 @@ new #[Title('Workstation Replacements')] class extends Component {
 
         Flux::toast(variant: 'success', text: __('Selection cleared.'));
     }
+
+    /**
+     * The Workstation hardware category, used both to look up default GL
+     * segments for new-asset requests and to resolve them via
+     * {@see HardwareAdditionGlResolver}.
+     */
+    #[Computed]
+    public function requestCategory(): ?HardwareCategory
+    {
+        return HardwareCategory::query()->where('name', 'Workstation')->first();
+    }
+
+    /**
+     * Divisions the user has Edit/Admin responsibility over for Workstation
+     * assets, regardless of whether any are currently due for replacement.
+     * This is both the "Request new asset" division dropdown's source and
+     * its authorization boundary.
+     *
+     * @return Collection<int, ResponsibleDivision>
+     */
+    #[Computed]
+    public function requestableDivisions(): Collection
+    {
+        return TdxAsset::query()
+            ->visibleTo(Auth::user())
+            ->whereHas('model.category', fn($query) => $query->where('name', 'Workstation'))
+            ->with('responsibleDivision')
+            ->get()
+            ->filter(fn(TdxAsset $asset): bool => $this->canEdit($asset))
+            ->pluck('responsibleDivision')
+            ->filter()
+            ->unique('id')
+            ->sortBy(fn(ResponsibleDivision $division): string => $this->breadcrumb($division->department_name, $division->name))
+            ->values();
+    }
+
+    /**
+     * Hardware-addition requests for Workstation assets visible to the user
+     * this cycle: their own, plus anyone else's within their Responsibility
+     * scope, mirroring how the replacement table above rolls up across a
+     * scope rather than showing only the current user's picks.
+     *
+     * @return Collection<int, BudgetLineItem>
+     */
+    #[Computed]
+    public function myRequests(): Collection
+    {
+        $cycle = $this->openCycle;
+
+        if (!$cycle) {
+            return collect();
+        }
+
+        return BudgetLineItem::query()
+            ->visibleTo(Auth::user())
+            ->where('budget_cycle_id', $cycle->id)
+            ->where('item_type', BudgetLineItemType::HardwareAddition)
+            ->whereHas('hardwareModel.category', fn($query) => $query->where('name', 'Workstation'))
+            ->with(['hardwareModel', 'responsibleDivision', 'glAllocations.glCode', 'createdBy'])
+            ->latest('created_at')
+            ->get();
+    }
+
+    /**
+     * The GL code a new-asset request for $divisionId would resolve to,
+     * for read-only display in the request modal. Not persisted here.
+     */
+    public function resolvedGlCode(mixed $divisionId): ?GlCode
+    {
+        $division = $this->requestableDivisions->firstWhere('id', (int) $divisionId);
+        $category = $this->requestCategory;
+
+        if (!$division || !$category) {
+            return null;
+        }
+
+        return app(HardwareAdditionGlResolver::class)->resolve($division, $category);
+    }
+
+    public function openNewRequest(): void
+    {
+        abort_unless($this->requestableDivisions->isNotEmpty(), 403);
+
+        $this->editingRequestId = null;
+        $this->newRequest = [
+            'responsible_division_id' => null,
+            'hardware_model_id' => null,
+            'with_docking' => false,
+            'quantity' => 1,
+            'justification' => null,
+        ];
+    }
+
+    public function editRequest(int $requestId): void
+    {
+        $item = $this->myRequests->firstWhere('id', $requestId);
+
+        abort_unless($item && $item->created_by_id === Auth::id() && $item->status === BudgetLineItemStatus::NotStarted, 403);
+
+        $this->editingRequestId = $requestId;
+        $this->newRequest = [
+            'responsible_division_id' => $item->responsible_division_id,
+            'hardware_model_id' => $item->hardware_model_id,
+            'with_docking' => $item->with_docking,
+            'quantity' => $item->quantity,
+            'justification' => $item->justification,
+        ];
+    }
+
+    public function saveRequest(): void
+    {
+        $cycle = $this->openCycle;
+
+        abort_unless($cycle, 403);
+
+        $existing = $this->editingRequestId !== null ? $this->myRequests->firstWhere('id', $this->editingRequestId) : null;
+
+        abort_unless(
+            $existing === null || ($existing->created_by_id === Auth::id() && $existing->status === BudgetLineItemStatus::NotStarted),
+            403
+        );
+
+        $validated = validator($this->newRequest, [
+            'responsible_division_id' => ['required', Rule::in($this->requestableDivisions->pluck('id'))],
+            'hardware_model_id' => ['required', Rule::in($this->eligibleModels->pluck('id'))],
+            'with_docking' => ['boolean'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'justification' => ['required', 'string', 'max:2000'],
+        ])->validate();
+
+        $division = $this->requestableDivisions->firstWhere('id', (int) $validated['responsible_division_id']);
+        $model = $this->eligibleModels->firstWhere('id', (int) $validated['hardware_model_id']);
+        $category = $this->requestCategory;
+
+        $quantity = (int) $validated['quantity'];
+        $withDocking = (bool) $validated['with_docking'];
+        $unitCost = $this->modelCostFor($model->id, $withDocking);
+        $proposedCost = $unitCost !== null ? $unitCost * $quantity : null;
+
+        $attributes = [
+            'budget_cycle_id' => $cycle->id,
+            'responsible_division_id' => $division->id,
+            'item_type' => BudgetLineItemType::HardwareAddition,
+            'hardware_model_id' => $model->id,
+            'with_docking' => $withDocking,
+            'quantity' => $quantity,
+            'proposed_cost' => $proposedCost,
+            'description' => __(':category request: :model', ['category' => $category?->name ?? 'Workstation', 'model' => $model->name]),
+            'justification' => $validated['justification'],
+        ];
+
+        if ($existing !== null) {
+            $existing->update([...$attributes, 'last_modified_by_id' => Auth::id()]);
+            $item = $existing;
+        } else {
+            $item = BudgetLineItem::create([...$attributes, 'status' => BudgetLineItemStatus::NotStarted, 'created_by_id' => Auth::id()]);
+        }
+
+        $glCode = $division && $category ? app(HardwareAdditionGlResolver::class)->resolve($division, $category) : null;
+
+        if ($glCode !== null) {
+            LineItemGlAllocation::updateOrCreate(
+                ['budget_line_item_id' => $item->id],
+                ['gl_code_id' => $glCode->id, 'percent' => 100, 'amount' => $proposedCost ?? 0],
+            );
+        } else {
+            $item->glAllocations()->delete();
+        }
+
+        unset($this->myRequests);
+        $this->editingRequestId = null;
+        Flux::modal('request-new-asset')->close();
+
+        Flux::toast(variant: 'success', text: __('Asset request saved.'));
+    }
+
+    public function deleteRequest(int $requestId): void
+    {
+        $item = $this->myRequests->firstWhere('id', $requestId);
+
+        abort_unless($item && $item->created_by_id === Auth::id() && $item->status === BudgetLineItemStatus::NotStarted, 403);
+
+        $item->delete();
+
+        unset($this->myRequests);
+        $this->editingRequestId = null;
+        Flux::modal('request-new-asset')->close();
+
+        Flux::toast(variant: 'success', text: __('Asset request deleted.'));
+    }
+
+    public function stopEditingRequest(): void
+    {
+        $this->editingRequestId = null;
+    }
 }; ?>
 
 <section class="w-full">
@@ -530,14 +824,164 @@ new #[Title('Workstation Replacements')] class extends Component {
                     {{ __('Workstation replacements can only be selected while a budget cycle is open.') }}
                 </flux:callout.text>
             </flux:callout>
-        @elseif ($this->baseEligibleAssets->isEmpty())
-            <flux:callout icon="information-circle" variant="secondary">
-                <flux:callout.heading>{{ __('Nothing to replace right now') }}</flux:callout.heading>
-                <flux:callout.text>
-                    {{ __('No workstations in your area are flagged for replacement in this budget cycle.') }}
-                </flux:callout.text>
-            </flux:callout>
         @else
+            @if ($this->requestableDivisions->isNotEmpty())
+                <div class="mb-6 flex items-center justify-between">
+                    <flux:heading size="lg">{{ __('New asset requests') }}</flux:heading>
+                    <flux:modal.trigger name="request-new-asset">
+                        <flux:button wire:click="openNewRequest" variant="primary" icon="plus">
+                            {{ __('Request new asset') }}
+                        </flux:button>
+                    </flux:modal.trigger>
+                </div>
+
+                @if ($this->myRequests->isNotEmpty())
+                    <flux:table class="mb-8">
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Division') }}</flux:table.column>
+                            <flux:table.column>{{ __('Model') }}</flux:table.column>
+                            <flux:table.column>{{ __('Qty') }}</flux:table.column>
+                            <flux:table.column>{{ __('Cost') }}</flux:table.column>
+                            <flux:table.column>{{ __('GL code') }}</flux:table.column>
+                            <flux:table.column>{{ __('Justification') }}</flux:table.column>
+                            <flux:table.column>{{ __('Status') }}</flux:table.column>
+                            <flux:table.column>{{ __('Requested by') }}</flux:table.column>
+                            <flux:table.column sticky class="bg-white dark:bg-zinc-900"></flux:table.column>
+                        </flux:table.columns>
+                        <flux:table.rows>
+                            @foreach ($this->myRequests as $request)
+                                <flux:table.row :key="$request->id">
+                                    <flux:table.cell>
+                                        <flux:text size="sm">
+                                            {{ $this->breadcrumb($request->responsibleDivision?->department_name, $request->responsibleDivision?->name) ?: '—' }}
+                                        </flux:text>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:text size="sm">{{ $request->hardwareModel?->name ?? '—' }}</flux:text>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:text size="sm">{{ $request->quantity }}</flux:text>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:text size="sm">
+                                            {{ $request->proposed_cost !== null ? '$' . number_format($request->proposed_cost, 2) : '—' }}
+                                        </flux:text>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:text size="sm">
+                                            {{ $request->glAllocations->first()?->glCode?->code_string ?? __('Pending Finance assignment') }}
+                                        </flux:text>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:text size="sm" class="line-clamp-2">{{ $request->justification }}</flux:text>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" :color="$request->status->getColor()">
+                                            {{ $request->status->getLabel() }}
+                                        </flux:badge>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:text size="sm">{{ $request->createdBy?->name ?? '—' }}</flux:text>
+                                    </flux:table.cell>
+                                    <flux:table.cell sticky class="bg-white dark:bg-zinc-900">
+                                        @if ($request->created_by_id === Auth::id() && $request->status === \App\Enums\BudgetLineItemStatus::NotStarted)
+                                            <flux:modal.trigger name="request-new-asset">
+                                                <flux:button wire:click="editRequest({{ $request->id }})" size="sm"
+                                                    variant="primary" color="blue">
+                                                    {{ __('Edit') }}
+                                                </flux:button>
+                                            </flux:modal.trigger>
+                                        @else
+                                            <flux:badge size="sm">{{ __('View only') }}</flux:badge>
+                                        @endif
+                                    </flux:table.cell>
+                                </flux:table.row>
+                            @endforeach
+                        </flux:table.rows>
+                    </flux:table>
+                @endif
+
+                <flux:modal name="request-new-asset" class="max-w-lg" @close="stopEditingRequest">
+                    <div class="space-y-6">
+                        <div>
+                            <flux:heading size="lg">{{ __('Request new asset') }}</flux:heading>
+                            <flux:subheading>
+                                {{ __('For a new workstation that is not replacing an existing asset.') }}
+                            </flux:subheading>
+                        </div>
+
+                        <flux:select wire:model.live="newRequest.responsible_division_id" :label="__('Division')">
+                            <flux:select.option value="" class="placeholder">
+                                {{ __('Select a division') }}
+                            </flux:select.option>
+                            @foreach ($this->requestableDivisions as $division)
+                                <flux:select.option value="{{ $division->id }}">
+                                    {{ $this->breadcrumb($division->department_name, $division->name) }}
+                                </flux:select.option>
+                            @endforeach
+                        </flux:select>
+
+                        <flux:select wire:model="newRequest.hardware_model_id" :label="__('Model')">
+                            <flux:select.option value="" class="placeholder">
+                                {{ __('Select a model') }}
+                            </flux:select.option>
+                            @foreach ($this->eligibleModels as $model)
+                                <flux:select.option value="{{ $model->id }}">
+                                    {{ $model->name }}
+                                    @if ($cost = $this->modelCosts->get($model->id . ':0'))
+                                        — ${{ number_format($cost->unit_cost, 2) }}
+                                    @endif
+                                </flux:select.option>
+                            @endforeach
+                        </flux:select>
+
+                        <flux:checkbox wire:model="newRequest.with_docking" :label="__('With docking station')" />
+
+                        <flux:input type="number" min="1" wire:model="newRequest.quantity" :label="__('Quantity')" />
+
+                        <flux:textarea wire:model="newRequest.justification" :label="__('Justification')"
+                            placeholder="{{ __('Why is this needed?') }}" rows="3" />
+
+                        <flux:text size="sm">
+                            {{ __('GL code:') }}
+                            @if (filled($this->newRequest['responsible_division_id'] ?? null))
+                                {{ $this->resolvedGlCode($this->newRequest['responsible_division_id'])?->code_string ?? __('Pending Finance assignment') }}
+                            @else
+                                {{ __('Select a division to determine the GL code') }}
+                            @endif
+                        </flux:text>
+
+                        <div class="flex items-center justify-between gap-2">
+                            <div>
+                                @if ($this->editingRequestId)
+                                    <flux:button wire:click="deleteRequest({{ $this->editingRequestId }})"
+                                        variant="ghost">
+                                        {{ __('Delete request') }}
+                                    </flux:button>
+                                @endif
+                            </div>
+                            <div class="flex gap-2">
+                                <flux:modal.close>
+                                    <flux:button variant="filled">{{ __('Cancel') }}</flux:button>
+                                </flux:modal.close>
+                                <flux:button wire:click="saveRequest" variant="primary">
+                                    {{ __('Save') }}
+                                </flux:button>
+                            </div>
+                        </div>
+                    </div>
+                </flux:modal>
+            @endif
+
+            @if ($this->baseEligibleAssets->isEmpty() && $this->myRequests->isEmpty())
+                <flux:callout icon="information-circle" variant="secondary">
+                    <flux:callout.heading>{{ __('Nothing to replace right now') }}</flux:callout.heading>
+                    <flux:callout.text>
+                        {{ __('No workstations in your area are flagged for replacement in this budget cycle.') }}
+                    </flux:callout.text>
+                </flux:callout>
+            @else
+            @if ($this->baseEligibleAssets->isNotEmpty())
             <div class="mb-4 flex flex-wrap items-end gap-4">
                 <div class="min-w-64 flex-1">
                     <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass"
@@ -566,15 +1010,14 @@ new #[Title('Workstation Replacements')] class extends Component {
                     </flux:button>
                 @endif
             </div>
-
-            @if ($this->eligibleAssets->isEmpty())
-                <flux:callout icon="magnifying-glass" variant="secondary">
-                    <flux:callout.heading>{{ __('No matches') }}</flux:callout.heading>
-                    <flux:callout.text>
-                        {{ __('No workstations match your search or filters.') }}
-                    </flux:callout.text>
-                </flux:callout>
-            @else
+                @if ($this->eligibleAssets->isEmpty())
+                    <flux:callout icon="magnifying-glass" variant="secondary">
+                        <flux:callout.heading>{{ __('No matches') }}</flux:callout.heading>
+                        <flux:callout.text>
+                            {{ __('No workstations match your search or filters.') }}
+                        </flux:callout.text>
+                    </flux:callout>
+                @else
                 <flux:table>
                 <flux:table.columns>
                     <flux:table.column>{{ __('Asset') }}</flux:table.column>
@@ -582,7 +1025,6 @@ new #[Title('Workstation Replacements')] class extends Component {
                     <flux:table.column>{{ __('FY Replacement') }}</flux:table.column>
                     <flux:table.column>{{ __('Assigned to') }}</flux:table.column>
                     <flux:table.column>{{ __('Warranty ends') }}</flux:table.column>
-                    <flux:table.column>{{ __('Current cost') }}</flux:table.column>
                     <flux:table.column>{{ __('Replacement model') }}</flux:table.column>
                     <flux:table.column>{{ __('Replacement cost') }}</flux:table.column>
                     <flux:table.column>{{ __('Notes') }}</flux:table.column>
@@ -594,7 +1036,7 @@ new #[Title('Workstation Replacements')] class extends Component {
 
                         @if ($row['type'] === 'header' && $row['depth'] === 0)
                             <flux:table.row>
-                                <flux:table.cell colspan="10"
+                                <flux:table.cell colspan="9"
                                     class="border-t border-zinc-200 bg-zinc-100 py-1 dark:border-zinc-700 dark:bg-zinc-800">
                                     <button type="button" wire:click="toggleDivision('{{ $row['division_key'] }}')"
                                         class="flex w-full cursor-pointer items-center gap-2 text-left">
@@ -612,7 +1054,7 @@ new #[Title('Workstation Replacements')] class extends Component {
                             </flux:table.row>
                         @elseif ($row['type'] === 'header')
                             <flux:table.row>
-                                <flux:table.cell colspan="10"
+                                <flux:table.cell colspan="9"
                                     class="bg-zinc-50 pl-8 text-sm font-medium text-zinc-500 dark:bg-zinc-900/40 dark:text-zinc-400">
                                     {{ $row['label'] }}
                                 </flux:table.cell>
@@ -639,11 +1081,6 @@ new #[Title('Workstation Replacements')] class extends Component {
                                 </flux:table.cell>
                                 <flux:table.cell>
                                     <flux:text size="sm">{{ $asset->warranty_ends_at?->format('M j, Y') ?? '—' }}
-                                    </flux:text>
-                                </flux:table.cell>
-                                <flux:table.cell>
-                                    <flux:text size="sm">
-                                        {{ $row['current_cost'] !== null ? '$' . number_format($row['current_cost'], 2) : '—' }}
                                     </flux:text>
                                 </flux:table.cell>
                                 <flux:table.cell>
@@ -678,46 +1115,56 @@ new #[Title('Workstation Replacements')] class extends Component {
                                     @endif
                                 </flux:table.cell>
                             </flux:table.row>
-                        @elseif ($row['type'] === 'subtotal')
-                            <flux:table.row>
-                                <flux:table.cell colspan="5" class="text-right font-medium"
-                                    :style="'padding-left: '.($row['depth'] * 1.5).
-                                    'rem'">
-                                    {{ $row['label'] }} {{ __('subtotal') }}
-                                    @if ($row['pending'] > 0)
-                                        <flux:text size="sm" class="inline">
-                                            ({{ trans_choice('{1} :count pending|[2,*] :count pending', $row['pending'], ['count' => $row['pending']]) }})
-                                        </flux:text>
-                                    @endif
-                                </flux:table.cell>
-                                <flux:table.cell class="font-medium">${{ number_format($row['current'], 2) }}
-                                </flux:table.cell>
-                                <flux:table.cell></flux:table.cell>
-                                <flux:table.cell class="font-medium">${{ number_format($row['replacement'], 2) }}
-                                </flux:table.cell>
-                                <flux:table.cell colspan="2" sticky class="bg-white dark:bg-zinc-900"></flux:table.cell>
-                            </flux:table.row>
-                        @elseif ($row['type'] === 'grand_total')
-                            <flux:table.row>
-                                <flux:table.cell colspan="5" class="text-right font-semibold">
-                                    {{ $row['label'] }}
-                                    @if ($row['pending'] > 0)
-                                        <flux:text size="sm" class="inline">
-                                            ({{ trans_choice('{1} :count pending|[2,*] :count pending', $row['pending'], ['count' => $row['pending']]) }})
-                                        </flux:text>
-                                    @endif
-                                </flux:table.cell>
-                                <flux:table.cell class="font-semibold">${{ number_format($row['current'], 2) }}
-                                </flux:table.cell>
-                                <flux:table.cell></flux:table.cell>
-                                <flux:table.cell class="font-semibold">${{ number_format($row['replacement'], 2) }}
-                                </flux:table.cell>
-                                <flux:table.cell colspan="2" sticky class="bg-white dark:bg-zinc-900"></flux:table.cell>
-                            </flux:table.row>
                         @endif
                     @endforeach
                 </flux:table.rows>
                 </flux:table>
+            @endif
+            @endif
+
+            @if ($this->totalsRows !== [])
+                <div class="mt-8">
+                    <flux:heading size="lg">{{ __('Totals') }}</flux:heading>
+                    <flux:table class="mt-2">
+                        <flux:table.columns>
+                            <flux:table.column>{{ __('Group') }}</flux:table.column>
+                            <flux:table.column>{{ __('Replacement cost') }}</flux:table.column>
+                            <flux:table.column>{{ __('New requests') }}</flux:table.column>
+                            <flux:table.column>{{ __('Total requested') }}</flux:table.column>
+                        </flux:table.columns>
+                        <flux:table.rows>
+                            @foreach ($this->totalsRows as $row)
+                                @php $isGrandTotal = $row['type'] === 'grand_total'; @endphp
+                                <flux:table.row>
+                                    <flux:table.cell class="{{ $isGrandTotal ? 'font-semibold' : 'font-medium' }} text-right"
+                                        :style="'padding-left: '.(($row['depth'] ?? 0) * 1.5).
+                                        'rem'">
+                                        {{ $row['label'] }}{{ $isGrandTotal ? '' : ' ' . __('subtotal') }}
+                                        @if ($row['pending'] > 0)
+                                            <flux:text size="sm" class="inline">
+                                                ({{ trans_choice('{1} :count pending|[2,*] :count pending', $row['pending'], ['count' => $row['pending']]) }})
+                                            </flux:text>
+                                        @endif
+                                    </flux:table.cell>
+                                    <flux:table.cell class="{{ $isGrandTotal ? 'font-semibold' : 'font-medium' }}">
+                                        ${{ number_format($row['replacement'], 2) }}
+                                    </flux:table.cell>
+                                    @if (($row['depth'] ?? 0) === 0)
+                                        <flux:table.cell class="{{ $isGrandTotal ? 'font-semibold' : 'font-medium' }}">
+                                            ${{ number_format($row['new_requests'], 2) }}
+                                        </flux:table.cell>
+                                        <flux:table.cell class="{{ $isGrandTotal ? 'font-semibold' : 'font-medium' }}">
+                                            ${{ number_format($row['replacement'] + $row['new_requests'], 2) }}
+                                        </flux:table.cell>
+                                    @else
+                                        <flux:table.cell></flux:table.cell>
+                                        <flux:table.cell></flux:table.cell>
+                                    @endif
+                                </flux:table.row>
+                            @endforeach
+                        </flux:table.rows>
+                    </flux:table>
+                </div>
             @endif
 
             <flux:modal name="edit-replacement" class="max-w-lg" @close="stopEditing">
@@ -775,6 +1222,7 @@ new #[Title('Workstation Replacements')] class extends Component {
                     </div>
                 @endif
             </flux:modal>
+            @endif
         @endif
     </div>
 </section>

@@ -22,6 +22,24 @@ it('seeds a default daily tdx-mobile schedule via migration', function () {
     expect($schedule->timezone)->toBe('America/Anchorage');
 });
 
+it('seeds a default daily tdx-public-wifi schedule via migration', function () {
+    $schedule = SyncSchedule::query()->firstWhere('integration', 'tdx-public-wifi');
+
+    expect($schedule)->not->toBeNull();
+    expect($schedule->frequency)->toBe(SyncFrequency::Daily);
+    expect($schedule->time_of_day)->toBe('00:00');
+    expect($schedule->timezone)->toBe('America/Anchorage');
+});
+
+it('seeds a default daily tdx-metronet schedule via migration', function () {
+    $schedule = SyncSchedule::query()->firstWhere('integration', 'tdx-metronet');
+
+    expect($schedule)->not->toBeNull();
+    expect($schedule->frequency)->toBe(SyncFrequency::Daily);
+    expect($schedule->time_of_day)->toBe('00:30');
+    expect($schedule->timezone)->toBe('America/Anchorage');
+});
+
 it('builds a cron expression for a daily schedule', function () {
     $schedule = SyncSchedule::factory()->make([
         'frequency' => SyncFrequency::Daily,
@@ -56,6 +74,26 @@ it('falls back to the mobile_sync config defaults when no tdx-mobile schedule ro
     expect($schedule->exists)->toBeFalse();
     expect($schedule->frequency)->toBe(SyncFrequency::Daily);
     expect($schedule->time_of_day)->toBe(config('tdx.mobile_sync.time_of_day'));
+});
+
+it('falls back to the public_wifi_sync config defaults when no tdx-public-wifi schedule row exists', function () {
+    SyncSchedule::query()->where('integration', 'tdx-public-wifi')->delete();
+
+    $schedule = SyncSchedule::forIntegration('tdx-public-wifi');
+
+    expect($schedule->exists)->toBeFalse();
+    expect($schedule->frequency)->toBe(SyncFrequency::Daily);
+    expect($schedule->time_of_day)->toBe(config('tdx.public_wifi_sync.time_of_day'));
+});
+
+it('falls back to the metronet_sync config defaults when no tdx-metronet schedule row exists', function () {
+    SyncSchedule::query()->where('integration', 'tdx-metronet')->delete();
+
+    $schedule = SyncSchedule::forIntegration('tdx-metronet');
+
+    expect($schedule->exists)->toBeFalse();
+    expect($schedule->frequency)->toBe(SyncFrequency::Daily);
+    expect($schedule->time_of_day)->toBe(config('tdx.metronet_sync.time_of_day'));
 });
 
 it('falls back to config defaults instead of throwing when the database is unreachable', function () {

@@ -4,6 +4,8 @@ use App\Filament\Resources\HardwareCategories\Pages\CreateHardwareCategory;
 use App\Filament\Resources\HardwareCategories\Pages\EditHardwareCategory;
 use App\Filament\Resources\HardwareCategories\Pages\ListHardwareCategories;
 use App\Models\HardwareCategory;
+use App\Models\ObjectCode;
+use App\Models\SubObjectCode;
 use App\Models\User;
 
 use function Pest\Laravel\assertDatabaseHas;
@@ -47,4 +49,22 @@ it('updates a hardware category', function () {
         ->assertHasNoFormErrors();
 
     expect($category->refresh()->name)->toBe('Desktops');
+});
+
+it('sets the default gl object and sub-object codes used for new-asset requests', function () {
+    $category = HardwareCategory::factory()->create();
+    $objectCode = ObjectCode::factory()->create();
+    $subObjectCode = SubObjectCode::factory()->create(['object_code' => $objectCode->code]);
+
+    livewire(EditHardwareCategory::class, ['record' => $category->getKey()])
+        ->fillForm([
+            'default_object_code' => $objectCode->code,
+            'default_sub_object_code_id' => $subObjectCode->id,
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($category->refresh())
+        ->default_object_code->toBe($objectCode->code)
+        ->default_sub_object_code_id->toBe($subObjectCode->id);
 });
