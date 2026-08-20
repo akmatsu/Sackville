@@ -77,6 +77,33 @@ it('fetches mobile devices using the bearer token', function () {
     });
 });
 
+it('fetches public wifi circuits using the bearer token', function () {
+    Http::fake([
+        'https://tdx.test/reports/985*' => Http::response([
+            'DisplayedColumns' => [
+                ['HeaderText' => 'ID', 'ColumnName' => 'AssetID'],
+            ],
+            'DataRows' => [
+                ['AssetID' => 1, 'LocationName' => 'Wasilla Pool'],
+                ['AssetID' => 2, 'LocationName' => 'Animal Care and Regulation'],
+            ],
+            'ID' => 985,
+        ], 200),
+    ]);
+
+    $client = new TdxClient('https://tdx.test', 'a-user', 'a-password');
+
+    $circuits = $client->getPublicWifi('fake-jwt-token');
+
+    expect($circuits)->toHaveCount(2);
+
+    Http::assertSent(function (Request $request) {
+        return str_starts_with($request->url(), 'https://tdx.test/reports/985')
+            && $request['withData'] === 'true'
+            && $request->hasHeader('Authorization', 'Bearer fake-jwt-token');
+    });
+});
+
 it('throws when authentication fails', function () {
     Http::fake([
         'https://tdx.test/auth' => Http::response('Unauthorized', 401),

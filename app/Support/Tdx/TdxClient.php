@@ -76,4 +76,21 @@ final class TdxClient
 
         return $response->json('DataRows') ?? [];
     }
+
+    /**
+     * Fetch the raw public wifi circuit rows from TDX report 985.
+     *
+     * Same shape as getWorkstations()/getMobileDevices() — see
+     * getWorkstations()'s docblock for the DataRows/withData notes.
+     *
+     * @return array<int, mixed>
+     */
+    public function getPublicWifi(string $token): array
+    {
+        $response = Http::withToken($token)
+            ->get("{$this->baseUrl}/reports/985", ['withData' => 'true'])
+            ->throw();
+
+        return $response->json('DataRows') ?? [];
+    }
 }
