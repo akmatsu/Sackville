@@ -9,11 +9,14 @@ use App\Models\GlCode;
 use App\Models\ResponsibleDivision;
 use App\Models\SyncRun;
 use App\Models\TdxPublicWifiCircuit;
+use App\Models\TdxPublicWifiCircuitCost;
+use App\Support\FiscalYear;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 use function Pest\Laravel\assertDatabaseCount;
 use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\travelTo;
 
 function fakeTdxPublicWifiRow(array $overrides = []): array
 {
@@ -67,6 +70,13 @@ it('creates a public wifi circuit from a full TDX row', function () {
         'address' => null,
         'speed' => '100 Mbps',
         'po_number' => '27-0252 LINE ZF',
+    ]);
+
+    $circuit = TdxPublicWifiCircuit::where('tdx_asset_id', '5722')->firstOrFail();
+
+    assertDatabaseHas(TdxPublicWifiCircuitCost::class, [
+        'tdx_public_wifi_circuit_id' => $circuit->id,
+        'fiscal_year' => FiscalYear::current(),
         'monthly_cost' => 134.98,
         'yearly_cost' => 1619.76,
         'purchase_cost' => 0,
@@ -85,8 +95,11 @@ it('leaves yearly_cost null when TDX gives no monthly cost', function () {
 
     (new SyncTdxPublicWifi)->handle();
 
-    assertDatabaseHas(TdxPublicWifiCircuit::class, [
-        'tdx_asset_id' => '5722',
+    $circuit = TdxPublicWifiCircuit::where('tdx_asset_id', '5722')->firstOrFail();
+
+    assertDatabaseHas(TdxPublicWifiCircuitCost::class, [
+        'tdx_public_wifi_circuit_id' => $circuit->id,
+        'fiscal_year' => FiscalYear::current(),
         'monthly_cost' => null,
         'yearly_cost' => null,
     ]);
@@ -105,6 +118,36 @@ it('updates the existing circuit instead of duplicating it when synced again', f
     assertDatabaseHas(TdxPublicWifiCircuit::class, [
         'tdx_asset_id' => '5722',
         'status' => 'Inactive',
+    ]);
+    assertDatabaseCount(TdxPublicWifiCircuitCost::class, 1);
+});
+
+it('creates a new cost row instead of overwriting when synced in a new fiscal year', function () {
+    travelTo('2026-06-01');
+
+    fakeTdxPublicWifiReports([
+        [fakeTdxPublicWifiRow([2675 => 100.00])],
+        [fakeTdxPublicWifiRow([2675 => 150.00])],
+    ]);
+
+    (new SyncTdxPublicWifi)->handle();
+
+    travelTo('2026-08-01');
+
+    (new SyncTdxPublicWifi)->handle();
+
+    $circuit = TdxPublicWifiCircuit::where('tdx_asset_id', '5722')->firstOrFail();
+
+    assertDatabaseCount(TdxPublicWifiCircuitCost::class, 2);
+    assertDatabaseHas(TdxPublicWifiCircuitCost::class, [
+        'tdx_public_wifi_circuit_id' => $circuit->id,
+        'fiscal_year' => 26,
+        'monthly_cost' => 100.00,
+    ]);
+    assertDatabaseHas(TdxPublicWifiCircuitCost::class, [
+        'tdx_public_wifi_circuit_id' => $circuit->id,
+        'fiscal_year' => 27,
+        'monthly_cost' => 150.00,
     ]);
 });
 

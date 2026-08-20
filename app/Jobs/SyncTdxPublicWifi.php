@@ -6,6 +6,7 @@ use App\Enums\ObjectCodeCategory;
 use App\Enums\SyncRunStatus;
 use App\Models\SyncRun;
 use App\Models\TdxPublicWifiCircuit;
+use App\Support\FiscalYear;
 use App\Support\Tdx\TdxClient;
 use App\Support\Tdx\TdxRowResolver;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -155,7 +156,7 @@ class SyncTdxPublicWifi implements ShouldBeUnique, ShouldQueue
         $responsibleOrg = $resolver->resolveResponsibleOrg($funding);
         $monthlyCost = $row[2675] ?? null;
 
-        TdxPublicWifiCircuit::updateOrCreate(
+        $circuit = TdxPublicWifiCircuit::updateOrCreate(
             ['tdx_asset_id' => $assetId],
             [
                 'status' => $resolver->stringOrNull($row['StatusName'] ?? null),
@@ -163,9 +164,6 @@ class SyncTdxPublicWifi implements ShouldBeUnique, ShouldQueue
                 'address' => $resolver->stringOrNull($row['ITAMAddress'] ?? null),
                 'speed' => $resolver->stringOrNull($row[2712] ?? null),
                 'po_number' => $resolver->stringOrNull($row[2674] ?? null),
-                'monthly_cost' => $monthlyCost,
-                'yearly_cost' => is_numeric($monthlyCost) ? round((float) $monthlyCost * 12, 2) : null,
-                'purchase_cost' => $row['PurchaseCost'] ?? null,
                 'notes' => $resolver->stringOrNull($row[2713] ?? null),
                 'assigned_department_code' => $responsibleOrg['department_code'],
                 'responsible_division_id' => $responsibleOrg['responsible_division_id'],
@@ -184,6 +182,15 @@ class SyncTdxPublicWifi implements ShouldBeUnique, ShouldQueue
                     : null,
                 'last_synced_at' => now(),
                 'raw_payload' => $row,
+            ]
+        );
+
+        $circuit->costs()->updateOrCreate(
+            ['fiscal_year' => FiscalYear::current()],
+            [
+                'monthly_cost' => $monthlyCost,
+                'yearly_cost' => is_numeric($monthlyCost) ? round((float) $monthlyCost * 12, 2) : null,
+                'purchase_cost' => $row['PurchaseCost'] ?? null,
             ]
         );
 

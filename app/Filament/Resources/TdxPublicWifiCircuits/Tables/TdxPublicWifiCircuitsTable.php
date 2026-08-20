@@ -36,11 +36,11 @@ class TdxPublicWifiCircuitsTable
                 TextColumn::make('po_number')
                     ->label('PO number')
                     ->searchable(),
-                TextColumn::make('monthly_cost')
+                TextColumn::make('currentCost.monthly_cost')
                     ->label('Monthly cost')
                     ->money('USD')
                     ->sortable(),
-                TextColumn::make('yearly_cost')
+                TextColumn::make('currentCost.yearly_cost')
                     ->label('Yearly cost')
                     ->money('USD')
                     ->sortable(),

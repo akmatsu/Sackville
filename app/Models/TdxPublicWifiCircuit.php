@@ -6,6 +6,8 @@ use Database\Factories\TdxPublicWifiCircuitFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TdxPublicWifiCircuit extends Model
 {
@@ -22,9 +24,6 @@ class TdxPublicWifiCircuit extends Model
         'address',
         'speed',
         'po_number',
-        'monthly_cost',
-        'yearly_cost',
-        'purchase_cost',
         'notes',
         'assigned_department_code',
         'responsible_division_id',
@@ -61,5 +60,21 @@ class TdxPublicWifiCircuit extends Model
     public function glCode(): BelongsTo
     {
         return $this->belongsTo(GlCode::class);
+    }
+
+    /**
+     * @return HasMany<TdxPublicWifiCircuitCost, $this>
+     */
+    public function costs(): HasMany
+    {
+        return $this->hasMany(TdxPublicWifiCircuitCost::class);
+    }
+
+    /**
+     * @return HasOne<TdxPublicWifiCircuitCost, $this>
+     */
+    public function currentCost(): HasOne
+    {
+        return $this->costs()->one()->ofMany('fiscal_year', 'max');
     }
 }

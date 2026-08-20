@@ -4,6 +4,7 @@ namespace App\Filament\Resources\TdxPublicWifiCircuits;
 
 use App\Filament\Resources\TdxPublicWifiCircuits\Pages\ListTdxPublicWifiCircuits;
 use App\Filament\Resources\TdxPublicWifiCircuits\Pages\ViewTdxPublicWifiCircuit;
+use App\Filament\Resources\TdxPublicWifiCircuits\RelationManagers\CostsRelationManager;
 use App\Filament\Resources\TdxPublicWifiCircuits\Schemas\TdxPublicWifiCircuitInfolist;
 use App\Filament\Resources\TdxPublicWifiCircuits\Tables\TdxPublicWifiCircuitsTable;
 use App\Models\TdxPublicWifiCircuit;
@@ -45,6 +46,13 @@ class TdxPublicWifiCircuitResource extends Resource
         return [
             'index' => ListTdxPublicWifiCircuits::route('/'),
             'view' => ViewTdxPublicWifiCircuit::route('/{record}'),
+        ];
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            CostsRelationManager::class,
         ];
     }
 }

@@ -17,8 +17,6 @@ class TdxPublicWifiCircuitFactory extends Factory
      */
     public function definition(): array
     {
-        $monthlyCost = fake()->randomFloat(2, 20, 500);
-
         return [
             'tdx_asset_id' => fake()->unique()->numerify('TDX-#####'),
             'status' => 'Active',
@@ -26,9 +24,6 @@ class TdxPublicWifiCircuitFactory extends Factory
             'address' => fake()->streetAddress(),
             'speed' => fake()->randomElement(['100 Mbps', '250 Mbps', '1 Gbps']),
             'po_number' => fake()->bothify('##-#### LINE ?'),
-            'monthly_cost' => $monthlyCost,
-            'yearly_cost' => round($monthlyCost * 12, 2),
-            'purchase_cost' => 0,
             'notes' => null,
             'assigned_department_code' => null,
             'responsible_division_id' => null,

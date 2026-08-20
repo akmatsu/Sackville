@@ -32,14 +32,11 @@ class TdxPublicWifiCircuitInfolist
                     TextEntry::make('po_number')
                         ->label('PO number')
                         ->placeholder('—'),
-                    TextEntry::make('monthly_cost')
+                    TextEntry::make('currentCost.monthly_cost')
                         ->label('Monthly cost')
                         ->money('USD'),
-                    TextEntry::make('yearly_cost')
+                    TextEntry::make('currentCost.yearly_cost')
                         ->label('Yearly cost')
-                        ->money('USD'),
-                    TextEntry::make('purchase_cost')
-                        ->label('Purchase cost')
                         ->money('USD'),
                     TextEntry::make('last_synced_at')
                         ->label('Last synced')
