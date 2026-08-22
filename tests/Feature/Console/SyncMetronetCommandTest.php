@@ -2,6 +2,7 @@
 
 use App\Jobs\SyncTdxMetronet;
 use App\Models\SyncRun;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 use function Pest\Laravel\assertDatabaseCount;
@@ -17,6 +18,11 @@ it('queues the sync job by default', function () {
 });
 
 it('runs the sync job immediately with --now', function () {
+    Http::fake([
+        '*/auth' => Http::response('fake-jwt-token', 200),
+        '*/reports/984*' => Http::response(['DataRows' => []]),
+    ]);
+
     $this->artisan('tdx:sync-metronet', ['--now' => true])
         ->assertSuccessful();
 

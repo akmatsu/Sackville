@@ -9,11 +9,11 @@ use App\Models\BudgetCycle;
 use App\Models\BudgetLineItem;
 use App\Models\GlCode;
 use App\Models\LineItemGlAllocation;
-use App\Models\PublicWifiCircuitReview;
+use App\Models\MetronetCircuitReview;
 use App\Models\Responsibility;
 use App\Models\ResponsibleDivision;
-use App\Models\TdxPublicWifiCircuit;
-use App\Services\PublicWifiAdditionGlResolver;
+use App\Models\TdxMetronetCircuit;
+use App\Services\MetronetAdditionGlResolver;
 use Flux\Flux;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +22,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Public Wifi Circuit Review')] class extends Component {
+new #[Title('Metronet Circuit Review')] class extends Component {
     /**
      * @var array<int, array{still_needed: string, justification: string|null}>
      */
@@ -76,7 +76,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
      * breadcrumb so groupedRows() can walk the filtered result in a single
      * pass and emit correct group boundaries.
      *
-     * @return Collection<int, TdxPublicWifiCircuit>
+     * @return Collection<int, TdxMetronetCircuit>
      */
     #[Computed]
     public function baseReviewableCircuits(): Collection
@@ -87,12 +87,12 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
             return collect();
         }
 
-        return TdxPublicWifiCircuit::query()
+        return TdxMetronetCircuit::query()
             ->visibleTo(Auth::user())
             ->reviewable()
             ->with(['responsibleDivision', 'responsibleLocation', 'glCode', 'currentCost', 'reviews' => fn($query) => $query->where('budget_cycle_id', $cycle->id)])
             ->get()
-            ->sortBy(fn(TdxPublicWifiCircuit $circuit): string => sprintf('%s|%s|%s|%s', $circuit->assigned_department_code ?? '', $circuit->responsibleDivision?->name ?? '', $circuit->responsibleLocation?->name ?? '', $circuit->location_name ?? $circuit->tdx_asset_id))
+            ->sortBy(fn(TdxMetronetCircuit $circuit): string => sprintf('%s|%s|%s|%s', $circuit->assigned_department_code ?? '', $circuit->responsibleDivision?->name ?? '', $circuit->responsibleLocation?->name ?? '', $circuit->location_name ?? $circuit->tdx_asset_id))
             ->values();
     }
 
@@ -100,13 +100,13 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
      * baseReviewableCircuits(), narrowed by the current search text and
      * filters. This is what the table and its grouped rows are built from.
      *
-     * @return Collection<int, TdxPublicWifiCircuit>
+     * @return Collection<int, TdxMetronetCircuit>
      */
     #[Computed]
     public function reviewableCircuits(): Collection
     {
         return $this->baseReviewableCircuits
-            ->filter(fn(TdxPublicWifiCircuit $circuit): bool => $this->matchesSearch($circuit) && $this->matchesStatus($circuit) && $this->matchesDivision($circuit))
+            ->filter(fn(TdxMetronetCircuit $circuit): bool => $this->matchesSearch($circuit) && $this->matchesStatus($circuit) && $this->matchesDivision($circuit))
             ->values();
     }
 
@@ -133,7 +133,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
             ->values();
     }
 
-    protected function matchesSearch(TdxPublicWifiCircuit $circuit): bool
+    protected function matchesSearch(TdxMetronetCircuit $circuit): bool
     {
         $needle = trim($this->search);
 
@@ -143,7 +143,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
 
         $needle = mb_strtolower($needle);
 
-        foreach ([$circuit->location_name, $circuit->address, $circuit->status, $circuit->po_number, $circuit->tdx_asset_id] as $haystack) {
+        foreach ([$circuit->location_name, $circuit->circuit_number, $circuit->status, $circuit->tdx_asset_id] as $haystack) {
             if ($haystack !== null && str_contains(mb_strtolower($haystack), $needle)) {
                 return true;
             }
@@ -152,7 +152,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
         return false;
     }
 
-    protected function matchesStatus(TdxPublicWifiCircuit $circuit): bool
+    protected function matchesStatus(TdxMetronetCircuit $circuit): bool
     {
         if ($this->statusFilter === 'all') {
             return true;
@@ -168,7 +168,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
         };
     }
 
-    protected function matchesDivision(TdxPublicWifiCircuit $circuit): bool
+    protected function matchesDivision(TdxMetronetCircuit $circuit): bool
     {
         if ($this->divisionFilter === '') {
             return true;
@@ -246,13 +246,13 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
         $this->collapsedDivisions[] = $divisionKey;
     }
 
-    public function canEdit(TdxPublicWifiCircuit $circuit): bool
+    public function canEdit(TdxMetronetCircuit $circuit): bool
     {
-        return Auth::user()->responsibilities->filter(fn(Responsibility $responsibility): bool => $responsibility->matchesPublicWifiCircuit($circuit))->contains(fn(Responsibility $responsibility): bool => in_array($responsibility->role, [ResponsibilityRole::Edit, ResponsibilityRole::Admin], true));
+        return Auth::user()->responsibilities->filter(fn(Responsibility $responsibility): bool => $responsibility->matchesMetronetCircuit($circuit))->contains(fn(Responsibility $responsibility): bool => in_array($responsibility->role, [ResponsibilityRole::Edit, ResponsibilityRole::Admin], true));
     }
 
     #[Computed]
-    public function editingCircuit(): ?TdxPublicWifiCircuit
+    public function editingCircuit(): ?TdxMetronetCircuit
     {
         return $this->editingCircuitId !== null ? $this->baseReviewableCircuits->firstWhere('id', $this->editingCircuitId) : null;
     }
@@ -285,8 +285,8 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
 
         $stillNeeded = $validated['still_needed'] === '1';
 
-        PublicWifiCircuitReview::updateOrCreate(
-            ['budget_cycle_id' => $cycle->id, 'tdx_public_wifi_circuit_id' => $circuit->id],
+        MetronetCircuitReview::updateOrCreate(
+            ['budget_cycle_id' => $cycle->id, 'tdx_metronet_circuit_id' => $circuit->id],
             [
                 'still_needed' => $stillNeeded,
                 'justification' => $stillNeeded ? $validated['justification'] : null,
@@ -310,7 +310,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
 
         abort_unless($circuit && $cycle && $this->canEdit($circuit), 403);
 
-        PublicWifiCircuitReview::query()->where('budget_cycle_id', $cycle->id)->where('tdx_public_wifi_circuit_id', $circuit->id)->delete();
+        MetronetCircuitReview::query()->where('budget_cycle_id', $cycle->id)->where('tdx_metronet_circuit_id', $circuit->id)->delete();
 
         $this->reviews[$circuitId] = [
             'still_needed' => '',
@@ -365,7 +365,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
             ->visibleTo(Auth::user())
             ->where('budget_cycle_id', $cycle->id)
             ->where('item_type', BudgetLineItemType::Network)
-            ->where('network_source', NetworkRequestSource::PublicWifi)
+            ->where('network_source', NetworkRequestSource::Metronet)
             ->with(['responsibleDivision', 'glAllocations.glCode', 'createdBy'])
             ->latest('created_at')
             ->get();
@@ -383,7 +383,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
             return null;
         }
 
-        return app(PublicWifiAdditionGlResolver::class)->resolve($division);
+        return app(MetronetAdditionGlResolver::class)->resolve($division);
     }
 
     public function openNewRequest(): void
@@ -437,7 +437,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
             'budget_cycle_id' => $cycle->id,
             'responsible_division_id' => $division->id,
             'item_type' => BudgetLineItemType::Network,
-            'network_source' => NetworkRequestSource::PublicWifi,
+            'network_source' => NetworkRequestSource::Metronet,
             'description' => $validated['location'],
             'justification' => $validated['justification'],
         ];
@@ -449,7 +449,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
             $item = BudgetLineItem::create([...$attributes, 'status' => BudgetLineItemStatus::NotStarted, 'created_by_id' => Auth::id()]);
         }
 
-        $glCode = $division !== null ? app(PublicWifiAdditionGlResolver::class)->resolve($division) : null;
+        $glCode = $division !== null ? app(MetronetAdditionGlResolver::class)->resolve($division) : null;
 
         if ($glCode !== null) {
             LineItemGlAllocation::updateOrCreate(
@@ -489,9 +489,9 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
 }; ?>
 
 <section class="w-full">
-    <flux:heading size="xl">{{ __('Public Wifi Circuit Review') }}</flux:heading>
+    <flux:heading size="xl">{{ __('Metronet Circuit Review') }}</flux:heading>
     <flux:subheading>
-        {{ __('Confirm whether each public wifi circuit in your area is still needed this budget cycle, or request a new one.') }}
+        {{ __('Confirm whether each Metronet circuit in your area is still needed this budget cycle, or request a new one.') }}
     </flux:subheading>
 
     <div class="mt-6">
@@ -499,7 +499,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
             <flux:callout icon="information-circle" variant="secondary">
                 <flux:callout.heading>{{ __('No open budget cycle') }}</flux:callout.heading>
                 <flux:callout.text>
-                    {{ __('Public wifi circuits can only be reviewed while a budget cycle is open.') }}
+                    {{ __('Metronet circuits can only be reviewed while a budget cycle is open.') }}
                 </flux:callout.text>
             </flux:callout>
         @else
@@ -574,7 +574,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
                         <div>
                             <flux:heading size="lg">{{ __('Request a new circuit') }}</flux:heading>
                             <flux:subheading>
-                                {{ __('For a public wifi circuit at a location that does not already have one.') }}
+                                {{ __('For a Metronet circuit at a location that does not already have one.') }}
                             </flux:subheading>
                         </div>
 
@@ -630,14 +630,14 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
                 <flux:callout icon="information-circle" variant="secondary">
                     <flux:callout.heading>{{ __('Nothing to review right now') }}</flux:callout.heading>
                     <flux:callout.text>
-                        {{ __('No public wifi circuits in your area need review this budget cycle.') }}
+                        {{ __('No Metronet circuits in your area need review this budget cycle.') }}
                     </flux:callout.text>
                 </flux:callout>
             @else
                 <div class="mb-4 flex flex-wrap items-end gap-4">
                     <div class="min-w-64 flex-1">
                         <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass"
-                            :placeholder="__('Search location, address, status, or PO number...')" />
+                            :placeholder="__('Search location, circuit number, or status...')" />
                     </div>
                     <flux:select wire:model.live="statusFilter" class="w-48" :label="__('Status')">
                         <flux:select.option value="all">{{ __('All statuses') }}</flux:select.option>
@@ -669,7 +669,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
                     <flux:table>
                         <flux:table.columns>
                             <flux:table.column>{{ __('Circuit') }}</flux:table.column>
-                            <flux:table.column>{{ __('Address') }}</flux:table.column>
+                            <flux:table.column>{{ __('Circuit number') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column>{{ __('Speed') }}</flux:table.column>
                             <flux:table.column>{{ __('Monthly cost') }}</flux:table.column>
@@ -715,7 +715,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
                                             <div class="font-medium">{{ $circuit->location_name ?? $circuit->tdx_asset_id }}</div>
                                         </flux:table.cell>
                                         <flux:table.cell>
-                                            <flux:text size="sm">{{ $circuit->address ?? '—' }}</flux:text>
+                                            <flux:text size="sm">{{ $circuit->circuit_number ?? '—' }}</flux:text>
                                         </flux:table.cell>
                                         <flux:table.cell>
                                             <flux:text size="sm">{{ $circuit->status ?? '—' }}</flux:text>
@@ -773,7 +773,7 @@ new #[Title('Public Wifi Circuit Review')] class extends Component {
                     <div class="space-y-6">
                         <div>
                             <flux:heading size="lg">{{ $circuit->location_name ?? $circuit->tdx_asset_id }}</flux:heading>
-                            <flux:subheading>{{ $circuit->address }}</flux:subheading>
+                            <flux:subheading>{{ $circuit->circuit_number }}</flux:subheading>
                         </div>
 
                         <flux:select wire:model.live="reviews.{{ $circuit->id }}.still_needed" :label="__('Is this circuit still needed?')">

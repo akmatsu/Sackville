@@ -15,6 +15,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::livewire('public-wifi/reviews', 'pages::public-wifi.reviews')
         ->name('public-wifi.reviews');
+
+    Route::livewire('metronet/reviews', 'pages::metronet.reviews')
+        ->name('metronet.reviews');
 });
 
 require __DIR__.'/settings.php';

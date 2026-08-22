@@ -3,6 +3,7 @@
 use App\Enums\BudgetCycleStatus;
 use App\Enums\BudgetLineItemStatus;
 use App\Enums\BudgetLineItemType;
+use App\Enums\NetworkRequestSource;
 use App\Models\BudgetCycle;
 use App\Models\BudgetLineItem;
 use App\Models\GlCode;
@@ -159,6 +160,7 @@ test('the requester can edit their own not-started request, and the location rou
         'budget_cycle_id' => BudgetCycle::query()->open()->firstOrFail()->id,
         'responsible_division_id' => $division->id,
         'item_type' => BudgetLineItemType::Network,
+        'network_source' => NetworkRequestSource::PublicWifi,
         'description' => 'Original Location',
         'justification' => 'Original justification.',
         'status' => BudgetLineItemStatus::NotStarted,
@@ -188,6 +190,7 @@ test('another user within the same responsibility scope can see but not edit the
         'budget_cycle_id' => BudgetCycle::query()->open()->firstOrFail()->id,
         'responsible_division_id' => $division->id,
         'item_type' => BudgetLineItemType::Network,
+        'network_source' => NetworkRequestSource::PublicWifi,
         'description' => 'Shared Location',
         'justification' => 'Growth coverage.',
         'status' => BudgetLineItemStatus::NotStarted,
@@ -211,6 +214,7 @@ test('a request that is no longer not-started cannot be edited or deleted by the
         'budget_cycle_id' => BudgetCycle::query()->open()->firstOrFail()->id,
         'responsible_division_id' => $division->id,
         'item_type' => BudgetLineItemType::Network,
+        'network_source' => NetworkRequestSource::PublicWifi,
         'description' => 'Shared Location',
         'justification' => 'Growth coverage.',
         'status' => BudgetLineItemStatus::InProgress,
@@ -234,6 +238,7 @@ test('the requester can delete their own not-started request', function () {
         'budget_cycle_id' => BudgetCycle::query()->open()->firstOrFail()->id,
         'responsible_division_id' => $division->id,
         'item_type' => BudgetLineItemType::Network,
+        'network_source' => NetworkRequestSource::PublicWifi,
         'description' => 'Shared Location',
         'justification' => 'Growth coverage.',
         'status' => BudgetLineItemStatus::NotStarted,

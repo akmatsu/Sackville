@@ -93,4 +93,21 @@ final class TdxClient
 
         return $response->json('DataRows') ?? [];
     }
+
+    /**
+     * Fetch the raw Metronet circuit rows from TDX report 984.
+     *
+     * Same shape as getWorkstations()/getPublicWifi() — see
+     * getWorkstations()'s docblock for the DataRows/withData notes.
+     *
+     * @return array<int, mixed>
+     */
+    public function getMetronet(string $token): array
+    {
+        $response = Http::withToken($token)
+            ->get("{$this->baseUrl}/reports/984", ['withData' => 'true'])
+            ->throw();
+
+        return $response->json('DataRows') ?? [];
+    }
 }

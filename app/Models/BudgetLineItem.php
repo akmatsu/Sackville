@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\BudgetLineItemStatus;
 use App\Enums\BudgetLineItemType;
+use App\Enums\NetworkRequestSource;
 use App\Enums\ResponsibilityScopeType;
 use Database\Factories\BudgetLineItemFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +25,7 @@ class BudgetLineItem extends Model
         'budget_cycle_id',
         'responsible_division_id',
         'item_type',
+        'network_source',
         'tdx_asset_id',
         'hardware_model_id',
         'software_product_id',
@@ -41,6 +43,7 @@ class BudgetLineItem extends Model
     protected $casts = [
         'with_docking' => 'boolean',
         'item_type' => BudgetLineItemType::class,
+        'network_source' => NetworkRequestSource::class,
         'status' => BudgetLineItemStatus::class,
     ];
 

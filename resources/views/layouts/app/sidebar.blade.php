@@ -24,6 +24,9 @@
                     <flux:sidebar.item icon="wifi" :href="route('public-wifi.reviews')" :current="request()->routeIs('public-wifi.reviews')" wire:navigate>
                         {{ __('Public Wifi Review') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="signal" :href="route('metronet.reviews')" :current="request()->routeIs('metronet.reviews')" wire:navigate>
+                        {{ __('Metronet Review') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
